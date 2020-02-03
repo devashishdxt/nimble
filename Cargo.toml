@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 cfg-if = "0.1"
+async-trait = "0.1"
 tokio = { version = "0.2", optional = true, features = ["io-util"] }
 async-std = { version = "1.4", optional = true }
 

@@ -1,11 +1,24 @@
-use std::io::{Result, Write};
+#[cfg(feature = "async-std")]
+use async_std::{io::Write, prelude::*};
+
+#[cfg(feature = "tokio")]
+use tokio::io::{AsyncWrite as Write, AsyncWriteExt};
+
+use core::{future::Future, pin::Pin};
+
+use crate::error::Result;
 
 pub trait Encode {
     fn size(&self) -> usize;
 
-    fn encode(&self) -> Vec<u8>;
-
-    fn encode_to<W: Write>(&self, writer: W) -> Result<usize>;
+    fn encode_to<'a, 't, W>(
+        &'a self,
+        writer: W,
+    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    where
+        W: Write + Unpin + Send + 't,
+        'a: 't,
+        Self: 't;
 }
 
 macro_rules! impl_primitive {
@@ -14,17 +27,26 @@ macro_rules! impl_primitive {
             impl Encode for $type {
                 #[inline]
                 fn size(&self) -> usize {
-                    std::mem::size_of::<Self>()
+                    core::mem::size_of::<Self>()
                 }
 
-                #[inline]
-                fn encode(&self) -> Vec<u8> {
-                    self.to_be_bytes().to_vec()
-                }
+                fn encode_to<'a, 't, W>(
+                    &'a self,
+                    writer: W,
+                ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+                where
+                    W: Write + Unpin + Send + 't,
+                    'a: 't,
+                    Self: 't,
+                {
+                    async fn __encode_to<W>(_self: $type, mut writer: W) -> Result<usize>
+                    where
+                        W: Write + Unpin + Send,
+                    {
+                        writer.write(&_self.to_be_bytes()).await.map_err(Into::into)
+                    }
 
-                #[inline]
-                fn encode_to<W: Write>(&self, mut writer: W) -> Result<usize> {
-                    writer.write(&self.to_be_bytes())
+                    Box::pin(__encode_to::<W>(*self, writer))
                 }
             }
         )+
@@ -36,115 +58,160 @@ impl_primitive!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize);
 impl Encode for bool {
     #[inline]
     fn size(&self) -> usize {
-        std::mem::size_of::<bool>()
+        core::mem::size_of::<bool>()
     }
 
-    #[inline]
-    fn encode(&self) -> Vec<u8> {
-        (*self as u8).encode()
-    }
+    fn encode_to<'a, 't, W>(
+        &'a self,
+        writer: W,
+    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    where
+        W: Write + Unpin + Send + 't,
+        'a: 't,
+        Self: 't,
+    {
+        async fn __encode_to<I>(_self: bool, writer: I) -> Result<usize>
+        where
+            I: Write + Unpin + Send,
+        {
+            (_self as u8).encode_to(writer).await
+        }
 
-    #[inline]
-    fn encode_to<W: Write>(&self, writer: W) -> Result<usize> {
-        (*self as u8).encode_to(writer)
+        Box::pin(__encode_to(*self, writer))
     }
 }
 
 impl Encode for char {
     #[inline]
     fn size(&self) -> usize {
-        std::mem::size_of::<char>()
+        core::mem::size_of::<char>()
     }
 
-    #[inline]
-    fn encode(&self) -> Vec<u8> {
-        (*self as u32).encode()
-    }
+    fn encode_to<'a, 't, W>(
+        &'a self,
+        writer: W,
+    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    where
+        W: Write + Unpin + Send + 't,
+        'a: 't,
+        Self: 't,
+    {
+        async fn __encode_to<I>(_self: char, writer: I) -> Result<usize>
+        where
+            I: Write + Unpin + Send,
+        {
+            (_self as u32).encode_to(writer).await
+        }
 
-    #[inline]
-    fn encode_to<W: Write>(&self, writer: W) -> Result<usize> {
-        (*self as u32).encode_to(writer)
+        Box::pin(__encode_to(*self, writer))
     }
 }
 
 impl<T> Encode for Option<T>
 where
-    T: Encode,
+    T: Encode + Sync,
 {
     fn size(&self) -> usize {
         match self {
-            Some(value) => std::mem::size_of::<u8>() + value.size(),
-            None => std::mem::size_of::<u8>(),
+            Some(ref value) => core::mem::size_of::<u8>() + value.size(),
+            None => core::mem::size_of::<u8>(),
         }
     }
 
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(self.size());
-        self.encode_to(&mut bytes)
-            .expect("Unable to write into Vec");
-        bytes
-    }
-
-    fn encode_to<W: Write>(&self, mut writer: W) -> Result<usize> {
-        match self {
-            None => writer.write(&[0]),
-            Some(value) => Ok(writer.write(&[1])? + value.encode_to(writer)?),
+    fn encode_to<'a, 't, W>(
+        &'a self,
+        writer: W,
+    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    where
+        W: Write + Unpin + Send + 't,
+        'a: 't,
+        Self: 't,
+    {
+        async fn __encode_to<T, I>(_self: &Option<T>, mut writer: I) -> Result<usize>
+        where
+            T: Encode,
+            I: Write + Unpin + Send,
+        {
+            match _self {
+                None => writer.write(&[0]).await.map_err(Into::into),
+                Some(ref value) => Ok(writer.write(&[1]).await? + value.encode_to(writer).await?),
+            }
         }
+
+        Box::pin(__encode_to(self, writer))
     }
 }
 
 impl<T> Encode for Vec<T>
 where
-    T: Encode,
+    T: Encode + Sync,
 {
     fn size(&self) -> usize {
-        std::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
+        core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
     }
 
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(self.size());
-        self.encode_to(&mut bytes)
-            .expect("Unable to write into Vec");
-        bytes
-    }
+    fn encode_to<'a, 't, W>(
+        &'a self,
+        writer: W,
+    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    where
+        W: Write + Unpin + Send + 't,
+        'a: 't,
+        Self: 't,
+    {
+        async fn __encode_to<T, I>(_self: &Vec<T>, mut writer: I) -> Result<usize>
+        where
+            T: Encode,
+            I: Write + Unpin + Send,
+        {
+            let mut encoded = 0;
 
-    fn encode_to<W: Write>(&self, mut writer: W) -> Result<usize> {
-        let mut encoded = 0;
+            encoded += (_self.len() as u64).encode_to(&mut writer).await?;
 
-        encoded += (self.len() as u64).encode_to(&mut writer)?;
+            for item in _self.iter() {
+                encoded += item.encode_to(&mut writer).await?;
+            }
 
-        for item in self.iter() {
-            encoded += item.encode_to(&mut writer)?;
+            Ok(encoded)
         }
 
-        Ok(encoded)
+        Box::pin(__encode_to(self, writer))
     }
 }
 
 impl<T> Encode for [T]
 where
-    T: Encode,
+    T: Encode + Sync,
 {
     fn size(&self) -> usize {
-        std::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
+        core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
     }
 
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(self.size());
-        self.encode_to(&mut bytes)
-            .expect("Unable to write into Vec");
-        bytes
-    }
+    fn encode_to<'a, 't, W>(
+        &'a self,
+        writer: W,
+    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    where
+        W: Write + Unpin + Send + 't,
+        'a: 't,
+        Self: 't,
+    {
+        async fn __encode_to<T, I>(_self: &[T], mut writer: I) -> Result<usize>
+        where
+            T: Encode,
+            I: Write + Unpin + Send,
+        {
+            let mut encoded = 0;
 
-    fn encode_to<W: Write>(&self, mut writer: W) -> Result<usize> {
-        let mut encoded = 0;
+            encoded += (_self.len() as u64).encode_to(&mut writer).await?;
 
-        encoded += (self.len() as u64).encode_to(&mut writer)?;
+            for item in _self.iter() {
+                encoded += item.encode_to(&mut writer).await?;
+            }
 
-        for item in self.iter() {
-            encoded += item.encode_to(&mut writer)?;
+            Ok(encoded)
         }
 
-        Ok(encoded)
+        Box::pin(__encode_to(self, writer))
     }
 }
