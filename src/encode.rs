@@ -146,6 +146,7 @@ impl<T> Encode for Vec<T>
 where
     T: Encode + Sync,
 {
+    #[inline]
     fn size(&self) -> usize {
         core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
     }
@@ -183,6 +184,7 @@ impl<T> Encode for [T]
 where
     T: Encode + Sync,
 {
+    #[inline]
     fn size(&self) -> usize {
         core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
     }
@@ -213,5 +215,45 @@ where
         }
 
         Box::pin(__encode_to(self, writer))
+    }
+}
+
+impl Encode for String {
+    #[inline]
+    fn size(&self) -> usize {
+        core::mem::size_of::<u64>() + self.len()
+    }
+
+    #[inline]
+    fn encode_to<'a, 't, W>(
+        &'a self,
+        writer: W,
+    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    where
+        W: Write + Unpin + Send + 't,
+        'a: 't,
+        Self: 't,
+    {
+        self.as_bytes().encode_to(writer)
+    }
+}
+
+impl Encode for str {
+    #[inline]
+    fn size(&self) -> usize {
+        core::mem::size_of::<u64>() + self.len()
+    }
+
+    #[inline]
+    fn encode_to<'a, 't, W>(
+        &'a self,
+        writer: W,
+    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    where
+        W: Write + Unpin + Send + 't,
+        'a: 't,
+        Self: 't,
+    {
+        self.as_bytes().encode_to(writer)
     }
 }

@@ -125,7 +125,7 @@ where
             I: Read + Unpin + Send,
         {
             let len = u64::decode_from(&mut reader).await?;
-            let len = usize::try_from(len).map_err(|_| Error::InvalidVecLength(len))?;
+            let len = usize::try_from(len).map_err(|_| Error::InvalidLength(len))?;
 
             let mut value = Vec::with_capacity(len);
 
@@ -134,6 +134,24 @@ where
             }
 
             Ok(value)
+        }
+
+        Box::pin(__decode_from(reader))
+    }
+}
+
+impl Decode for String {
+    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+    where
+        R: Read + Unpin + Send + 't,
+        Self: 't,
+    {
+        async fn __decode_from<I>(reader: I) -> Result<String>
+        where
+            I: Read + Unpin + Send,
+        {
+            let bytes = <Vec<u8>>::decode_from(reader).await?;
+            String::from_utf8(bytes).map_err(Into::into)
         }
 
         Box::pin(__decode_from(reader))
