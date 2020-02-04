@@ -8,6 +8,7 @@ pub enum Error {
     InvalidEnumVariant(u32),
     InvalidLength(u64),
     InvalidUtf8String(FromUtf8Error),
+    PartiallyFilledArray,
 }
 
 impl From<std::io::Error> for Error {
@@ -32,6 +33,7 @@ impl fmt::Display for Error {
             Self::InvalidEnumVariant(ref code) => write!(f, "Invalid enum variant: {}", code),
             Self::InvalidLength(ref len) => write!(f, "Invalid length: {}", len),
             Self::InvalidUtf8String(ref error) => write!(f, "Invalid UTF8 String: {}", error),
+            Self::PartiallyFilledArray => write!(f, "Partially filled array"),
         }
     }
 }

@@ -257,3 +257,52 @@ impl Encode for str {
         self.as_bytes().encode_to(writer)
     }
 }
+
+macro_rules! impl_fixed_arr {
+    ($($len: expr),+) => {
+        $(
+            impl<T> Encode for [T; $len]
+            where
+                T: Encode + Sync,
+            {
+                #[inline]
+                fn size(&self) -> usize {
+                    self.iter().map(Encode::size).sum::<usize>()
+                }
+
+                #[inline]
+                fn encode_to<'a, 't, W>(
+                    &'a self,
+                    writer: W,
+                ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+                where
+                    W: Write + Unpin + Send + 't,
+                    'a: 't,
+                    Self: 't,
+                {
+                    async fn __encode_to<T, I>(_self: &[T; $len], mut writer: I) -> Result<usize>
+                    where
+                        T: Encode,
+                        I: Write + Unpin + Send,
+                    {
+                        let mut encoded = 0;
+
+                        for item in _self.iter() {
+                            encoded += item.encode_to(&mut writer).await?;
+                        }
+
+                        Ok(encoded)
+                    }
+
+                    Box::pin(__encode_to(self, writer))
+                }
+            }
+        )+
+    };
+}
+
+impl_fixed_arr!(
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+    27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+    51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 128, 256, 512, 1024
+);
