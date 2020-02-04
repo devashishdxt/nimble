@@ -3,6 +3,9 @@ use core::fmt;
 #[derive(Debug)]
 pub enum Error {
     IoError(std::io::Error),
+    InvalidChar(u32),
+    InvalidEnumVariant(u32),
+    InvalidVecLength(u64),
 }
 
 impl From<std::io::Error> for Error {
@@ -15,7 +18,10 @@ impl From<std::io::Error> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::IoError(io_error) => write!(f, "IO Error: {}", io_error),
+            Self::IoError(ref io_error) => write!(f, "IO Error: {}", io_error),
+            Self::InvalidChar(ref code) => write!(f, "Invalid character: {}", code),
+            Self::InvalidEnumVariant(ref code) => write!(f, "Invalid enum variant: {}", code),
+            Self::InvalidVecLength(ref len) => write!(f, "Invalid Vec length: {}", len),
         }
     }
 }

@@ -1,5 +1,5 @@
 #[cfg(feature = "async-std")]
-use async_std::{io::Write, prelude::*};
+use async_std::io::{prelude::WriteExt, Write};
 
 #[cfg(feature = "tokio")]
 use tokio::io::{AsyncWrite as Write, AsyncWriteExt};
@@ -159,7 +159,7 @@ where
         'a: 't,
         Self: 't,
     {
-        async fn __encode_to<T, I>(_self: &Vec<T>, mut writer: I) -> Result<usize>
+        async fn __encode_to<T, I>(_self: &[T], mut writer: I) -> Result<usize>
         where
             T: Encode,
             I: Write + Unpin + Send,
