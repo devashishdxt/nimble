@@ -148,7 +148,7 @@ where
 {
     #[inline]
     fn size(&self) -> usize {
-        core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
+        <[T]>::size(self)
     }
 
     fn encode_to<'a, 't, W>(
@@ -160,23 +160,7 @@ where
         'a: 't,
         Self: 't,
     {
-        async fn __encode_to<T, I>(_self: &[T], mut writer: I) -> Result<usize>
-        where
-            T: Encode,
-            I: Write + Unpin + Send,
-        {
-            let mut encoded = 0;
-
-            encoded += (_self.len() as u64).encode_to(&mut writer).await?;
-
-            for item in _self.iter() {
-                encoded += item.encode_to(&mut writer).await?;
-            }
-
-            Ok(encoded)
-        }
-
-        Box::pin(__encode_to(self, writer))
+        <[T]>::encode_to(self, writer)
     }
 }
 
@@ -221,7 +205,7 @@ where
 impl Encode for String {
     #[inline]
     fn size(&self) -> usize {
-        core::mem::size_of::<u64>() + self.len()
+        <str>::size(self)
     }
 
     #[inline]
@@ -234,7 +218,7 @@ impl Encode for String {
         'a: 't,
         Self: 't,
     {
-        self.as_bytes().encode_to(writer)
+        <str>::encode_to(self, writer)
     }
 }
 
