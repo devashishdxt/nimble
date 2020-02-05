@@ -6,11 +6,14 @@ pub use decode::Decode;
 pub use encode::Encode;
 pub use error::{Error, Result};
 
-#[inline]
-pub async fn encode<E: Encode + ?Sized>(value: &E) -> Result<Vec<u8>> {
+pub async fn encode<E: Encode + ?Sized>(value: &E) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(value.size());
-    value.encode_to(&mut bytes).await?;
-    Ok(bytes)
+    // This will never fail because `encode_to()` returns `Err` only then there is an IO error which cannot happen when
+    // writing to a `Vec`
+    let _ = value.encode_to(&mut bytes).await.expect(
+        "Failed to encode value. Log an issue on nimble's GitHub repository with backtrace.",
+    );
+    bytes
 }
 
 #[inline]
@@ -29,10 +32,10 @@ mod tests {
             #[tokio::test]
             async fn $name() {
                 let original = random::<$type>();
-                let encoded = encode(&original).await.unwrap();
+                let encoded = encode(&original).await;
+                assert_eq!(original.size(), encoded.len());
                 let decoded = decode::<$type>(&encoded).await.unwrap();
                 assert_eq!(original, decoded, "Invalid encoding/decoding");
-                assert_eq!(original.size(), core::mem::size_of::<$type>());
             }
         };
     }
@@ -74,7 +77,8 @@ mod tests {
     #[tokio::test]
     async fn option_none_test() {
         let original: Option<u8> = None;
-        let encoded = encode(&original).await.unwrap();
+        let encoded = encode(&original).await;
+        assert_eq!(original.size(), encoded.len());
         let decoded = decode::<Option<u8>>(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
@@ -82,24 +86,35 @@ mod tests {
     #[tokio::test]
     async fn option_some_test() {
         let original: Option<u8> = Some(random());
-        let encoded = encode(&original).await.unwrap();
+        let encoded = encode(&original).await;
+        assert_eq!(original.size(), encoded.len());
         let decoded = decode::<Option<u8>>(&encoded).await.unwrap();
+        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    }
+
+    #[tokio::test]
+    async fn fixed_arr_test() {
+        let original = [1i32, 2i32, 3i32];
+        let encoded = encode(&original).await;
+        assert_eq!(original.size(), encoded.len());
+        let decoded = decode::<[i32; 3]>(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 
     #[tokio::test]
     async fn vec_test() {
         let original = vec![1, 2, 3];
-        let encoded = encode(&original).await.unwrap();
+        let encoded = encode(&original).await;
+        assert_eq!(original.size(), encoded.len());
         let decoded = decode::<Vec<i32>>(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 
     #[tokio::test]
     async fn slice_test() {
-        let original = [1, 2, 3];
-        let encoded = encode(&original[..]).await.unwrap();
-        println!("{:?}", encoded);
+        let original = [1i32, 2i32, 3i32];
+        let encoded = encode(&original[..]).await;
+        assert_eq!(original[..].size(), encoded.len());
         let decoded = decode::<Vec<i32>>(&encoded).await.unwrap();
         assert_eq!(original.to_vec(), decoded, "Invalid encoding/decoding");
     }
@@ -107,7 +122,8 @@ mod tests {
     #[tokio::test]
     async fn string_test() {
         let original = "hello";
-        let encoded = encode(original).await.unwrap();
+        let encoded = encode(original).await;
+        assert_eq!(original.size(), encoded.len());
         let decoded = decode::<String>(&encoded).await.unwrap();
         assert_eq!(original.to_string(), decoded, "Invalid encoding/decoding");
     }
@@ -115,7 +131,8 @@ mod tests {
     #[tokio::test]
     async fn vec_string_test() {
         let original = vec!["hello".to_string(), "world".to_string()];
-        let encoded = encode(&original).await.unwrap();
+        let encoded = encode(&original).await;
+        assert_eq!(original.size(), encoded.len());
         let decoded = decode::<Vec<String>>(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
