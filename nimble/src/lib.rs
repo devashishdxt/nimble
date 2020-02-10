@@ -93,6 +93,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn result_ok_test() {
+        let original: Result<u8, u8> = Ok(random());
+        let encoded = encode(&original).await;
+        assert_eq!(original.size(), encoded.len());
+        let decoded = decode::<Result<u8, u8>>(&encoded).await.unwrap();
+        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    }
+
+    #[tokio::test]
+    async fn result_err_test() {
+        let original: Result<u8, u8> = Err(random());
+        let encoded = encode(&original).await;
+        assert_eq!(original.size(), encoded.len());
+        let decoded = decode::<Result<u8, u8>>(&encoded).await.unwrap();
+        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    }
+
+    #[tokio::test]
     async fn fixed_arr_test() {
         let original = [1i32, 2i32, 3i32];
         let encoded = encode(&original).await;

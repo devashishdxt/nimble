@@ -5,6 +5,7 @@ use async_std::io::{Read, ReadExt};
 use tokio::io::{AsyncRead as Read, AsyncReadExt};
 
 use core::{convert::TryFrom, future::Future, pin::Pin};
+use std::{borrow::Cow, rc::Rc, sync::Arc};
 
 use arrayvec::ArrayVec;
 
@@ -112,6 +113,35 @@ where
     }
 }
 
+impl<T, E> Decode for core::result::Result<T, E>
+where
+    T: Decode,
+    E: Decode,
+{
+    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+    where
+        R: Read + Unpin + Send + 't,
+        Self: 't,
+    {
+        async fn __decode_from<T, E, I>(mut reader: I) -> Result<core::result::Result<T, E>>
+        where
+            T: Decode,
+            E: Decode,
+            I: Read + Unpin + Send,
+        {
+            let option = u8::decode_from(&mut reader).await?;
+
+            match option {
+                0 => T::decode_from(&mut reader).await.map(Ok),
+                1 => E::decode_from(&mut reader).await.map(Err),
+                _ => Err(Error::InvalidEnumVariant(option as u32)),
+            }
+        }
+
+        Box::pin(__decode_from(reader))
+    }
+}
+
 impl<T> Decode for Vec<T>
 where
     T: Decode + Send,
@@ -154,6 +184,62 @@ impl Decode for String {
         {
             let bytes = <Vec<u8>>::decode_from(reader).await?;
             String::from_utf8(bytes).map_err(Into::into)
+        }
+
+        Box::pin(__decode_from(reader))
+    }
+}
+
+macro_rules! impl_deref {
+    ($type: ty, $func: expr) => {
+        impl<T> Decode for $type
+        where
+            T: Decode + Send,
+        {
+            fn decode_from<'t, R>(
+                reader: R,
+            ) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+            where
+                R: Read + Unpin + Send + 't,
+                Self: 't,
+            {
+                async fn __decode_from<T, I>(reader: I) -> Result<$type>
+                where
+                    T: Decode,
+                    I: Read + Unpin + Send,
+                {
+                    T::decode_from(reader).await.map($func)
+                }
+
+                Box::pin(__decode_from(reader))
+            }
+        }
+    };
+}
+
+impl_deref!(Box<T>, Box::new);
+impl_deref!(Rc<T>, Rc::new);
+impl_deref!(Arc<T>, Arc::new);
+
+impl<'a, T: ?Sized> Decode for Cow<'a, T>
+where
+    T: ToOwned + Send,
+    <T as ToOwned>::Owned: Decode,
+{
+    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+    where
+        R: Read + Unpin + Send + 't,
+        Self: 't,
+    {
+        async fn __decode_from<'b, T: ?Sized, I>(reader: I) -> Result<Cow<'b, T>>
+        where
+            T: ToOwned + 'b,
+            <T as ToOwned>::Owned: Decode,
+            I: Read + Unpin + Send,
+        {
+            Ok(Cow::Owned(
+                <<T as ToOwned>::Owned>::decode_from(reader).await?,
+            ))
         }
 
         Box::pin(__decode_from(reader))

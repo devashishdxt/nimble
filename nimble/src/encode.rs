@@ -5,6 +5,7 @@ use async_std::io::{prelude::WriteExt, Write};
 use tokio::io::{AsyncWrite as Write, AsyncWriteExt};
 
 use core::{future::Future, pin::Pin};
+use std::{borrow::Cow, rc::Rc, sync::Arc};
 
 use crate::error::Result;
 
@@ -142,6 +143,46 @@ where
     }
 }
 
+impl<T, E> Encode for core::result::Result<T, E>
+where
+    T: Encode + Sync,
+    E: Encode + Sync,
+{
+    fn size(&self) -> usize {
+        match self {
+            Ok(ref value) => core::mem::size_of::<u8>() + value.size(),
+            Err(ref err) => core::mem::size_of::<u8>() + err.size(),
+        }
+    }
+
+    fn encode_to<'a, 't, W>(
+        &'a self,
+        writer: W,
+    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    where
+        W: Write + Unpin + Send + 't,
+        'a: 't,
+        Self: 't,
+    {
+        async fn __encode_to<T, E, I>(
+            _self: &core::result::Result<T, E>,
+            mut writer: I,
+        ) -> Result<usize>
+        where
+            T: Encode,
+            E: Encode,
+            I: Write + Unpin + Send,
+        {
+            match _self {
+                Ok(ref value) => Ok(writer.write(&[0]).await? + value.encode_to(writer).await?),
+                Err(ref err) => Ok(writer.write(&[1]).await? + err.encode_to(writer).await?),
+            }
+        }
+
+        Box::pin(__encode_to(self, writer))
+    }
+}
+
 impl<T> Encode for Vec<T>
 where
     T: Encode + Sync,
@@ -241,6 +282,36 @@ impl Encode for str {
         self.as_bytes().encode_to(writer)
     }
 }
+
+macro_rules! impl_deref {
+    ($($desc: tt)+) => {
+        impl $($desc)+ {
+            #[inline]
+            fn size(&self) -> usize {
+                <T>::size(self)
+            }
+
+            fn encode_to<'a, 't, W>(
+                &'a self,
+                writer: W,
+            ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+            where
+                W: Write + Unpin + Send + 't,
+                'a: 't,
+                Self: 't,
+            {
+                <T>::encode_to(self, writer)
+            }
+        }
+    }
+}
+
+impl_deref!(<T: ?Sized> Encode for &T where T: Encode + Sync);
+impl_deref!(<T: ?Sized> Encode for &mut T where T: Encode + Sync);
+impl_deref!(<T: ?Sized> Encode for Box<T> where T: Encode + Sync);
+impl_deref!(<T: ?Sized> Encode for Rc<T> where T: Encode + Sync);
+impl_deref!(<T: ?Sized> Encode for Arc<T> where T: Encode + Sync);
+impl_deref!(<T: ?Sized> Encode for Cow<'_, T> where T: Encode + ToOwned + Sync);
 
 macro_rules! impl_fixed_arr {
     ($($len: expr),+) => {
