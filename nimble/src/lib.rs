@@ -1,7 +1,12 @@
 mod decode;
 mod encode;
 mod error;
+pub mod io;
 
+#[cfg(feature = "derive")]
+pub use nimble_derive::*;
+
+pub use async_trait::async_trait;
 pub use decode::Decode;
 pub use encode::Encode;
 pub use error::{Error, Result};
@@ -17,6 +22,7 @@ pub async fn encode<E: Encode + ?Sized>(value: &E) -> Vec<u8> {
 }
 
 #[inline]
+#[allow(clippy::useless_asref)]
 pub async fn decode<D: Decode>(bytes: &[u8]) -> Result<D> {
     D::decode_from(&mut bytes.as_ref()).await
 }
@@ -152,6 +158,15 @@ mod tests {
         let encoded = encode(&original).await;
         assert_eq!(original.size(), encoded.len());
         let decoded = decode::<Vec<String>>(&encoded).await.unwrap();
+        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    }
+
+    #[tokio::test]
+    async fn box_test() {
+        let original = Box::new("10".to_string());
+        let encoded = encode(&original).await;
+        assert_eq!(original.size(), encoded.len());
+        let decoded = decode::<Box<String>>(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 }

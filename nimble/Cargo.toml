@@ -7,7 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1"
 arrayvec = { version = "0.5", features = ["array-sizes-33-128"] }
+nimble-derive = { path = "../nimble-derive", optional = true }
 tokio = { version = "0.2", optional = true, features = ["io-util"] }
 async-std = { version = "1.5", optional = true }
 
@@ -16,5 +18,5 @@ rand = "0.7"
 tokio = { version = "0.2", features = ["rt-threaded", "macros"] }
 
 [features]
-default = ["tokio"]
-doc = []
+default = ["derive", "tokio"]
+derive = ["nimble-derive"]

@@ -1,42 +1,33 @@
-#[cfg(feature = "async-std")]
-use async_std::io::{Read, ReadExt};
-
-#[cfg(feature = "tokio")]
-use tokio::io::{AsyncRead as Read, AsyncReadExt};
-
-use core::{convert::TryFrom, future::Future, pin::Pin};
-use std::{borrow::Cow, rc::Rc, sync::Arc};
+use core::convert::TryFrom;
+use std::{rc::Rc, sync::Arc};
 
 use arrayvec::ArrayVec;
 
-use crate::error::{Error, Result};
+use crate::{
+    async_trait,
+    error::{Error, Result},
+    io::{Read, ReadExt},
+};
 
+#[async_trait]
 pub trait Decode: Sized {
-    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+    async fn decode_from<R>(reader: R) -> Result<Self>
     where
-        R: Read + Unpin + Send + 't,
-        Self: 't;
+        R: Read + Unpin + Send;
 }
 
 macro_rules! impl_primitive {
     ($($type: ty),+) => {
         $(
+            #[async_trait]
             impl Decode for $type {
-                fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+                async fn decode_from<R>(mut reader: R) -> Result<Self>
                 where
-                    R: Read + Unpin + Send + 't,
-                    Self: 't,
+                    R: Read + Unpin + Send
                 {
-                    async fn __decode_from<I>(mut reader: I) -> Result<$type>
-                    where
-                        I: Read + Unpin + Send,
-                    {
-                        let mut bytes = [0u8; core::mem::size_of::<$type>()];
-                        reader.read_exact(&mut bytes).await?;
-                        Ok(<$type>::from_be_bytes(bytes))
-                    }
-
-                    Box::pin(__decode_from(reader))
+                    let mut bytes = [0u8; core::mem::size_of::<$type>()];
+                    reader.read_exact(&mut bytes).await?;
+                    Ok(<$type>::from_be_bytes(bytes))
                 }
             }
         )+
@@ -45,173 +36,117 @@ macro_rules! impl_primitive {
 
 impl_primitive!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize);
 
+#[async_trait]
 impl Decode for bool {
-    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+    async fn decode_from<R>(mut reader: R) -> Result<Self>
     where
-        R: Read + Unpin + Send + 't,
-        Self: 't,
+        R: Read + Unpin + Send,
     {
-        async fn __decode_from<I>(mut reader: I) -> Result<bool>
-        where
-            I: Read + Unpin + Send,
-        {
-            let mut bytes = [0u8; core::mem::size_of::<u8>()];
-            reader.read_exact(&mut bytes).await?;
-            Ok(<u8>::from_be_bytes(bytes) != 0)
-        }
-
-        Box::pin(__decode_from(reader))
+        let mut bytes = [0u8; core::mem::size_of::<u8>()];
+        reader.read_exact(&mut bytes).await?;
+        Ok(<u8>::from_be_bytes(bytes) != 0)
     }
 }
 
+#[async_trait]
 impl Decode for char {
-    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+    async fn decode_from<R>(mut reader: R) -> Result<Self>
     where
-        R: Read + Unpin + Send + 't,
-        Self: 't,
+        R: Read + Unpin + Send,
     {
-        async fn __decode_from<I>(mut reader: I) -> Result<char>
-        where
-            I: Read + Unpin + Send,
-        {
-            let mut bytes = [0u8; core::mem::size_of::<u32>()];
-            reader.read_exact(&mut bytes).await?;
+        let mut bytes = [0u8; core::mem::size_of::<u32>()];
+        reader.read_exact(&mut bytes).await?;
 
-            let code = <u32>::from_be_bytes(bytes);
+        let code = <u32>::from_be_bytes(bytes);
 
-            core::char::from_u32(code).ok_or_else(|| Error::InvalidChar(code))
-        }
-
-        Box::pin(__decode_from(reader))
+        core::char::from_u32(code).ok_or_else(|| Error::InvalidChar(code))
     }
 }
 
+#[async_trait]
 impl<T> Decode for Option<T>
 where
     T: Decode,
 {
-    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+    async fn decode_from<R>(mut reader: R) -> Result<Self>
     where
-        R: Read + Unpin + Send + 't,
-        Self: 't,
+        R: Read + Unpin + Send,
     {
-        async fn __decode_from<T, I>(mut reader: I) -> Result<Option<T>>
-        where
-            T: Decode,
-            I: Read + Unpin + Send,
-        {
-            let option = u8::decode_from(&mut reader).await?;
+        let option = u8::decode_from(&mut reader).await?;
 
-            match option {
-                0 => Ok(None),
-                1 => T::decode_from(&mut reader).await.map(Some),
-                _ => Err(Error::InvalidEnumVariant(option as u32)),
-            }
+        match option {
+            0 => Ok(None),
+            1 => T::decode_from(&mut reader).await.map(Some),
+            _ => Err(Error::InvalidEnumVariant(option as u32)),
         }
-
-        Box::pin(__decode_from(reader))
     }
 }
 
+#[async_trait]
 impl<T, E> Decode for core::result::Result<T, E>
 where
     T: Decode,
     E: Decode,
 {
-    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+    async fn decode_from<R>(mut reader: R) -> Result<Self>
     where
-        R: Read + Unpin + Send + 't,
-        Self: 't,
+        R: Read + Unpin + Send,
     {
-        async fn __decode_from<T, E, I>(mut reader: I) -> Result<core::result::Result<T, E>>
-        where
-            T: Decode,
-            E: Decode,
-            I: Read + Unpin + Send,
-        {
-            let option = u8::decode_from(&mut reader).await?;
+        let option = u8::decode_from(&mut reader).await?;
 
-            match option {
-                0 => T::decode_from(&mut reader).await.map(Ok),
-                1 => E::decode_from(&mut reader).await.map(Err),
-                _ => Err(Error::InvalidEnumVariant(option as u32)),
-            }
+        match option {
+            0 => T::decode_from(&mut reader).await.map(Ok),
+            1 => E::decode_from(&mut reader).await.map(Err),
+            _ => Err(Error::InvalidEnumVariant(option as u32)),
         }
-
-        Box::pin(__decode_from(reader))
     }
 }
 
+#[async_trait]
 impl<T> Decode for Vec<T>
 where
     T: Decode + Send,
 {
-    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+    async fn decode_from<R>(mut reader: R) -> Result<Self>
     where
-        R: Read + Unpin + Send + 't,
-        Self: 't,
+        R: Read + Unpin + Send,
     {
-        async fn __decode_from<T, I>(mut reader: I) -> Result<Vec<T>>
-        where
-            T: Decode + Send,
-            I: Read + Unpin + Send,
-        {
-            let len = u64::decode_from(&mut reader).await?;
-            let len = usize::try_from(len).map_err(|_| Error::InvalidLength(len))?;
+        let len = u64::decode_from(&mut reader).await?;
+        let len = usize::try_from(len).map_err(|_| Error::InvalidLength(len))?;
 
-            let mut value = Vec::with_capacity(len);
+        let mut value = Vec::with_capacity(len);
 
-            for _ in 0..len {
-                value.push(T::decode_from(&mut reader).await?);
-            }
-
-            Ok(value)
+        for _ in 0..len {
+            value.push(T::decode_from(&mut reader).await?);
         }
 
-        Box::pin(__decode_from(reader))
+        Ok(value)
     }
 }
 
+#[async_trait]
 impl Decode for String {
-    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+    async fn decode_from<R>(reader: R) -> Result<Self>
     where
-        R: Read + Unpin + Send + 't,
-        Self: 't,
+        R: Read + Unpin + Send,
     {
-        async fn __decode_from<I>(reader: I) -> Result<String>
-        where
-            I: Read + Unpin + Send,
-        {
-            let bytes = <Vec<u8>>::decode_from(reader).await?;
-            String::from_utf8(bytes).map_err(Into::into)
-        }
-
-        Box::pin(__decode_from(reader))
+        let bytes = <Vec<u8>>::decode_from(reader).await?;
+        String::from_utf8(bytes).map_err(Into::into)
     }
 }
 
 macro_rules! impl_deref {
     ($type: ty, $func: expr) => {
+        #[async_trait]
         impl<T> Decode for $type
         where
-            T: Decode + Send,
+            T: Decode,
         {
-            fn decode_from<'t, R>(
-                reader: R,
-            ) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+            async fn decode_from<R>(reader: R) -> Result<Self>
             where
-                R: Read + Unpin + Send + 't,
-                Self: 't,
+                R: Read + Unpin + Send,
             {
-                async fn __decode_from<T, I>(reader: I) -> Result<$type>
-                where
-                    T: Decode,
-                    I: Read + Unpin + Send,
-                {
-                    T::decode_from(reader).await.map($func)
-                }
-
-                Box::pin(__decode_from(reader))
+                T::decode_from(reader).await.map($func)
             }
         }
     };
@@ -221,59 +156,42 @@ impl_deref!(Box<T>, Box::new);
 impl_deref!(Rc<T>, Rc::new);
 impl_deref!(Arc<T>, Arc::new);
 
-impl<'a, T: ?Sized> Decode for Cow<'a, T>
-where
-    T: ToOwned + Send,
-    <T as ToOwned>::Owned: Decode,
-{
-    fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
-    where
-        R: Read + Unpin + Send + 't,
-        Self: 't,
-    {
-        async fn __decode_from<'b, T: ?Sized, I>(reader: I) -> Result<Cow<'b, T>>
-        where
-            T: ToOwned + 'b,
-            <T as ToOwned>::Owned: Decode,
-            I: Read + Unpin + Send,
-        {
-            Ok(Cow::Owned(
-                <<T as ToOwned>::Owned>::decode_from(reader).await?,
-            ))
-        }
-
-        Box::pin(__decode_from(reader))
-    }
-}
+// #[async_trait]
+// impl<'a, T: ?Sized> Decode for Cow<'a, T>
+// where
+//     T: ToOwned + 'a,
+//     <T as ToOwned>::Owned: Decode,
+// {
+//     async fn decode_from<R>(reader: R) -> Result<Self>
+//     where
+//         R: Read + Unpin + Send,
+//     {
+//         Ok(Cow::Owned(
+//             <<T as ToOwned>::Owned>::decode_from(reader).await?,
+//         ))
+//     }
+// }
 
 macro_rules! impl_fixed_arr {
     ($($len: expr),+) => {
         $(
+            #[async_trait]
             impl<T> Decode for [T; $len]
             where
                 T: Decode + Send,
             {
-                fn decode_from<'t, R>(reader: R) -> Pin<Box<dyn Future<Output = Result<Self>> + Send + 't>>
+                async fn decode_from<R>(mut reader: R) -> Result<Self>
                 where
-                    R: Read + Unpin + Send + 't,
-                    Self: 't,
+                    R: Read + Unpin + Send,
                 {
-                    async fn __decode_from<T, I>(mut reader: I) -> Result<[T; $len]>
-                    where
-                        T: Decode + Send,
-                        I: Read + Unpin + Send,
-                    {
-                        let mut arr = ArrayVec::<[T; $len]>::new();
+                    let mut arr = ArrayVec::<[T; $len]>::new();
 
-                        for _ in 0..$len {
-                            let value = T::decode_from(&mut reader).await?;
-                            arr.push(value)
-                        }
-
-                        arr.into_inner().map_err(|_| Error::PartiallyFilledArray)
+                    for _ in 0..$len {
+                        let value = T::decode_from(&mut reader).await?;
+                        arr.push(value)
                     }
 
-                    Box::pin(__decode_from(reader))
+                    arr.into_inner().map_err(|_| Error::PartiallyFilledArray)
                 }
             }
         )+

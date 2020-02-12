@@ -1,53 +1,35 @@
-#[cfg(feature = "async-std")]
-use async_std::io::{prelude::WriteExt, Write};
+use std::sync::Arc;
 
-#[cfg(feature = "tokio")]
-use tokio::io::{AsyncWrite as Write, AsyncWriteExt};
+use crate::{
+    async_trait,
+    error::Result,
+    io::{Write, WriteExt},
+};
 
-use core::{future::Future, pin::Pin};
-use std::{borrow::Cow, rc::Rc, sync::Arc};
-
-use crate::error::Result;
-
+#[async_trait]
 pub trait Encode {
     fn size(&self) -> usize;
 
-    fn encode_to<'a, 't, W>(
-        &'a self,
-        writer: W,
-    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    async fn encode_to<W>(&self, writer: W) -> Result<usize>
     where
-        W: Write + Unpin + Send + 't,
-        'a: 't,
-        Self: 't;
+        W: Write + Unpin + Send;
 }
 
 macro_rules! impl_primitive {
-    ($($type: ty),+) => {
+    ($($type: tt),+) => {
         $(
+            #[async_trait]
             impl Encode for $type {
                 #[inline]
                 fn size(&self) -> usize {
                     core::mem::size_of::<Self>()
                 }
 
-                fn encode_to<'a, 't, W>(
-                    &'a self,
-                    writer: W,
-                ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+                async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
                 where
-                    W: Write + Unpin + Send + 't,
-                    'a: 't,
-                    Self: 't,
+                    W: Write + Unpin + Send,
                 {
-                    async fn __encode_to<W>(_self: $type, mut writer: W) -> Result<usize>
-                    where
-                        W: Write + Unpin + Send,
-                    {
-                        writer.write(&_self.to_be_bytes()).await.map_err(Into::into)
-                    }
-
-                    Box::pin(__encode_to::<W>(*self, writer))
+                    writer.write(&self.to_be_bytes()).await.map_err(Into::into)
                 }
             }
         )+
@@ -56,58 +38,39 @@ macro_rules! impl_primitive {
 
 impl_primitive!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize);
 
+#[async_trait]
 impl Encode for bool {
     #[inline]
     fn size(&self) -> usize {
         core::mem::size_of::<bool>()
     }
 
-    fn encode_to<'a, 't, W>(
-        &'a self,
-        writer: W,
-    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    async fn encode_to<W>(&self, writer: W) -> Result<usize>
     where
-        W: Write + Unpin + Send + 't,
-        'a: 't,
-        Self: 't,
+        W: Write + Unpin + Send,
     {
-        async fn __encode_to<I>(_self: bool, writer: I) -> Result<usize>
-        where
-            I: Write + Unpin + Send,
-        {
-            (_self as u8).encode_to(writer).await
-        }
-
-        Box::pin(__encode_to(*self, writer))
+        (*self as u8).encode_to(writer).await
     }
 }
 
+#[async_trait]
 impl Encode for char {
     #[inline]
     fn size(&self) -> usize {
         core::mem::size_of::<char>()
     }
 
-    fn encode_to<'a, 't, W>(
-        &'a self,
-        writer: W,
-    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    async fn encode_to<W>(&self, writer: W) -> Result<usize>
     where
-        W: Write + Unpin + Send + 't,
-        'a: 't,
-        Self: 't,
+        W: Write + Unpin + Send,
     {
-        async fn __encode_to<I>(_self: char, writer: I) -> Result<usize>
-        where
-            I: Write + Unpin + Send,
-        {
-            (_self as u32).encode_to(writer).await
-        }
-
-        Box::pin(__encode_to(*self, writer))
+        (*self as u32).encode_to(writer).await
     }
 }
 
+#[async_trait]
 impl<T> Encode for Option<T>
 where
     T: Encode + Sync,
@@ -119,30 +82,18 @@ where
         }
     }
 
-    fn encode_to<'a, 't, W>(
-        &'a self,
-        writer: W,
-    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
     where
-        W: Write + Unpin + Send + 't,
-        'a: 't,
-        Self: 't,
+        W: Write + Unpin + Send,
     {
-        async fn __encode_to<T, I>(_self: &Option<T>, mut writer: I) -> Result<usize>
-        where
-            T: Encode,
-            I: Write + Unpin + Send,
-        {
-            match _self {
-                None => writer.write(&[0]).await.map_err(Into::into),
-                Some(ref value) => Ok(writer.write(&[1]).await? + value.encode_to(writer).await?),
-            }
+        match self {
+            None => writer.write(&[0]).await.map_err(Into::into),
+            Some(ref value) => Ok(writer.write(&[1]).await? + value.encode_to(writer).await?),
         }
-
-        Box::pin(__encode_to(self, writer))
     }
 }
 
+#[async_trait]
 impl<T, E> Encode for core::result::Result<T, E>
 where
     T: Encode + Sync,
@@ -155,34 +106,18 @@ where
         }
     }
 
-    fn encode_to<'a, 't, W>(
-        &'a self,
-        writer: W,
-    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
     where
-        W: Write + Unpin + Send + 't,
-        'a: 't,
-        Self: 't,
+        W: Write + Unpin + Send,
     {
-        async fn __encode_to<T, E, I>(
-            _self: &core::result::Result<T, E>,
-            mut writer: I,
-        ) -> Result<usize>
-        where
-            T: Encode,
-            E: Encode,
-            I: Write + Unpin + Send,
-        {
-            match _self {
-                Ok(ref value) => Ok(writer.write(&[0]).await? + value.encode_to(writer).await?),
-                Err(ref err) => Ok(writer.write(&[1]).await? + err.encode_to(writer).await?),
-            }
+        match _self {
+            Ok(ref value) => Ok(writer.write(&[0]).await? + value.encode_to(writer).await?),
+            Err(ref err) => Ok(writer.write(&[1]).await? + err.encode_to(writer).await?),
         }
-
-        Box::pin(__encode_to(self, writer))
     }
 }
 
+#[async_trait]
 impl<T> Encode for Vec<T>
 where
     T: Encode + Sync,
@@ -192,19 +127,16 @@ where
         <[T]>::size(self)
     }
 
-    fn encode_to<'a, 't, W>(
-        &'a self,
-        writer: W,
-    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    #[allow(clippy::ptr_arg)]
+    async fn encode_to<W>(&self, writer: W) -> Result<usize>
     where
-        W: Write + Unpin + Send + 't,
-        'a: 't,
-        Self: 't,
+        W: Write + Unpin + Send,
     {
-        <[T]>::encode_to(self, writer)
+        <[T]>::encode_to(self, writer).await
     }
 }
 
+#[async_trait]
 impl<T> Encode for [T]
 where
     T: Encode + Sync,
@@ -214,93 +146,67 @@ where
         core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
     }
 
-    fn encode_to<'a, 't, W>(
-        &'a self,
-        writer: W,
-    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
     where
-        W: Write + Unpin + Send + 't,
-        'a: 't,
-        Self: 't,
+        W: Write + Unpin + Send,
     {
-        async fn __encode_to<T, I>(_self: &[T], mut writer: I) -> Result<usize>
-        where
-            T: Encode,
-            I: Write + Unpin + Send,
-        {
-            let mut encoded = 0;
+        let mut encoded = 0;
 
-            encoded += (_self.len() as u64).encode_to(&mut writer).await?;
+        encoded += (_self.len() as u64).encode_to(&mut writer).await?;
 
-            for item in _self.iter() {
-                encoded += item.encode_to(&mut writer).await?;
-            }
-
-            Ok(encoded)
+        for item in _self.iter() {
+            encoded += item.encode_to(&mut writer).await?;
         }
 
-        Box::pin(__encode_to(self, writer))
+        Ok(encoded)
     }
 }
 
+#[async_trait]
 impl Encode for String {
     #[inline]
     fn size(&self) -> usize {
         <str>::size(self)
     }
 
-    #[inline]
-    fn encode_to<'a, 't, W>(
-        &'a self,
-        writer: W,
-    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    #[allow(clippy::ptr_arg)]
+    async fn encode_to<W>(&self, writer: W) -> Result<usize>
     where
-        W: Write + Unpin + Send + 't,
-        'a: 't,
-        Self: 't,
+        W: Write + Unpin + Send,
     {
-        <str>::encode_to(self, writer)
+        <str>::encode_to(self, writer).await
     }
 }
 
+#[async_trait]
 impl Encode for str {
     #[inline]
     fn size(&self) -> usize {
         core::mem::size_of::<u64>() + self.len()
     }
 
-    #[inline]
-    fn encode_to<'a, 't, W>(
-        &'a self,
-        writer: W,
-    ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+    async fn encode_to<W>(&self, writer: W) -> Result<usize>
     where
-        W: Write + Unpin + Send + 't,
-        'a: 't,
-        Self: 't,
+        W: Write + Unpin + Send,
     {
-        self.as_bytes().encode_to(writer)
+        self.as_bytes().encode_to(writer).await
     }
 }
 
 macro_rules! impl_deref {
     ($($desc: tt)+) => {
+        #[async_trait]
         impl $($desc)+ {
             #[inline]
             fn size(&self) -> usize {
                 <T>::size(self)
             }
 
-            fn encode_to<'a, 't, W>(
-                &'a self,
-                writer: W,
-            ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+            async fn encode_to<W>(&self, writer: W) -> Result<usize>
             where
-                W: Write + Unpin + Send + 't,
-                'a: 't,
-                Self: 't,
+                W: Write + Unpin + Send,
             {
-                <T>::encode_to(self, writer)
+                <T>::encode_to(self, writer).await
             }
         }
     }
@@ -309,13 +215,13 @@ macro_rules! impl_deref {
 impl_deref!(<T: ?Sized> Encode for &T where T: Encode + Sync);
 impl_deref!(<T: ?Sized> Encode for &mut T where T: Encode + Sync);
 impl_deref!(<T: ?Sized> Encode for Box<T> where T: Encode + Sync);
-impl_deref!(<T: ?Sized> Encode for Rc<T> where T: Encode + Sync);
-impl_deref!(<T: ?Sized> Encode for Arc<T> where T: Encode + Sync);
-impl_deref!(<T: ?Sized> Encode for Cow<'_, T> where T: Encode + ToOwned + Sync);
+impl_deref!(<T: ?Sized> Encode for Arc<T> where T: Encode + Sync + Send);
+// impl_deref!(<T: ?Sized> Encode for Cow<'_, T> where T: Encode + ToOwned + Sync, <T as ToOwned>::Owned: Sync);
 
 macro_rules! impl_fixed_arr {
-    ($($len: expr),+) => {
+    ($($len: tt),+) => {
         $(
+            #[async_trait]
             impl<T> Encode for [T; $len]
             where
                 T: Encode + Sync,
@@ -325,31 +231,17 @@ macro_rules! impl_fixed_arr {
                     self.iter().map(Encode::size).sum::<usize>()
                 }
 
-                #[inline]
-                fn encode_to<'a, 't, W>(
-                    &'a self,
-                    writer: W,
-                ) -> Pin<Box<dyn Future<Output = Result<usize>> + Send + 't>>
+                async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
                 where
-                    W: Write + Unpin + Send + 't,
-                    'a: 't,
-                    Self: 't,
+                    W: Write + Unpin + Send,
                 {
-                    async fn __encode_to<T, I>(_self: &[T; $len], mut writer: I) -> Result<usize>
-                    where
-                        T: Encode,
-                        I: Write + Unpin + Send,
-                    {
-                        let mut encoded = 0;
+                    let mut encoded = 0;
 
-                        for item in _self.iter() {
-                            encoded += item.encode_to(&mut writer).await?;
-                        }
-
-                        Ok(encoded)
+                    for item in _self.iter() {
+                        encoded += item.encode_to(&mut writer).await?;
                     }
 
-                    Box::pin(__encode_to(self, writer))
+                    Ok(encoded)
                 }
             }
         )+
