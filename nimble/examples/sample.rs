@@ -1,10 +1,18 @@
 use nimble::Encode;
 
 #[derive(Encode)]
-struct MyStruct<T> where T: Send + Sync {
+enum MyEnum {
+    Hello(u8, u16),
+    World { a: u8, b: u16 },
+}
+
+#[derive(Encode)]
+struct MyStruct(u8, u16);
+
+#[derive(Encode)]
+struct MyNewStruct {
     a: u8,
     b: u16,
-    arr: Vec<T>,
 }
 
 fn main() {}
