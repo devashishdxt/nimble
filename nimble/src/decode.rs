@@ -16,7 +16,7 @@ pub trait Decode: Sized {
     ///
     /// ## Equivalent to:
     ///
-    /// ```
+    /// ```rust,ignore
     /// async fn decode_from<R>(reader: R) -> Result<Self>
     /// where
     ///     R: Read + Unpin + Send

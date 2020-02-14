@@ -16,7 +16,7 @@ pub trait Encode {
     ///
     /// ## Equivalent to:
     ///
-    /// ```
+    /// ```rust,ignore
     /// async fn encode_to<W>(&self, writer: W) -> Result<usize>
     /// where
     ///     W: Write + Unpin + Send
