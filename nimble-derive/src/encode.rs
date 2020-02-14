@@ -5,7 +5,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, parse_quote, DeriveInput};
 
-use self::size_expr::SizeExpr;
+use self::{encode_to_expr::EncodeToExpr, size_expr::SizeExpr};
 use crate::{context::Context, util::add_trait_bounds};
 
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -20,13 +20,13 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     // Create context for generating expressions
-    let context = Context::new(&mut input.data);
+    let context = Context::new(&name, &mut input.data);
 
     // Generate an expression for calculating size of encoded byte array.
     let size: TokenStream = context.size_expr();
 
     // Generate expression for encoding value to byte array and writing it to writer.
-    // let encode_to = encode_to_impl(&input.data);
+    let encode_to = context.encode_to_expr();
 
     // Build the output, possibly using quasi-quotation
     let expanded = quote! {
@@ -41,7 +41,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             where
                 W: nimble::io::Write + Unpin + Send,
             {
-                unimplemented!()
+                #encode_to
             }
         }
     };

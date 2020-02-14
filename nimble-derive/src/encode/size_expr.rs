@@ -13,13 +13,14 @@ pub trait SizeExpr {
 
 impl<'a> SizeExpr for Context<'a> {
     fn size_expr(&self) -> TokenStream {
+        let name = &self.name;
         let field_prefix = &self.field_prefix;
 
         match &self.expr_type {
-            ExprType::Struct { fields } => {
+            ExprType::Struct { ref fields, .. } => {
                 size_calculation_expr(fields.clone(), &field_prefix, None)
             }
-            ExprType::Enum { variants } => {
+            ExprType::Enum { ref variants } => {
                 let match_exprs = variants.clone().map(|variant| -> TokenStream {
                     let span = variant.span();
                     let variant_name = variant.get_name();
@@ -34,7 +35,7 @@ impl<'a> SizeExpr for Context<'a> {
                     );
 
                     quote_spanned! {span=>
-                        Self:: #variant_name #pattern_matching => #size_calculation
+                        #name :: #variant_name #pattern_matching => #size_calculation
                     }
                 });
 
