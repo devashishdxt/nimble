@@ -7,9 +7,20 @@ use crate::{
 };
 
 #[async_trait]
+/// Trait for encoding values
 pub trait Encode {
+    /// Returns size of encoded byte array
     fn size(&self) -> usize;
 
+    /// Writes encoded byte array to writer and returns the number of bytes written
+    ///
+    /// ## Equivalent to:
+    ///
+    /// ```
+    /// async fn encode_to<W>(&self, writer: W) -> Result<usize>
+    /// where
+    ///     W: Write + Unpin + Send
+    /// ```
     async fn encode_to<W>(&self, writer: W) -> Result<usize>
     where
         W: Write + Unpin + Send;

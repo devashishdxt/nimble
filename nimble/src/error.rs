@@ -2,12 +2,19 @@ use core::fmt;
 use std::string::FromUtf8Error;
 
 #[derive(Debug)]
+/// Error returned by this crate
 pub enum Error {
+    /// IO error
     IoError(std::io::Error),
+    /// Invalid character
     InvalidChar(u32),
+    /// Invalid enum variant
     InvalidEnumVariant(u32),
+    /// Invalid length
     InvalidLength(u64),
+    /// Invalid UTF-8 string
     InvalidUtf8String(FromUtf8Error),
+    /// Partially filled array
     PartiallyFilledArray,
 }
 
@@ -32,7 +39,7 @@ impl fmt::Display for Error {
             Self::InvalidChar(ref code) => write!(f, "Invalid character: {}", code),
             Self::InvalidEnumVariant(ref code) => write!(f, "Invalid enum variant: {}", code),
             Self::InvalidLength(ref len) => write!(f, "Invalid length: {}", len),
-            Self::InvalidUtf8String(ref error) => write!(f, "Invalid UTF8 String: {}", error),
+            Self::InvalidUtf8String(ref error) => write!(f, "Invalid UTF-8 string: {}", error),
             Self::PartiallyFilledArray => write!(f, "Partially filled array"),
         }
     }
@@ -40,4 +47,5 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Result type with [`nimble::Error`](enum.Error.html)
 pub type Result<T> = core::result::Result<T, Error>;

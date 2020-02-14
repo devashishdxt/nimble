@@ -1,3 +1,4 @@
+//! Re-exports IO traits from `tokio`/`async-std` depending on enabled feature.
 #[cfg(feature = "async-std")]
 pub use async_std::io::{prelude::WriteExt, Read, ReadExt, Write};
 

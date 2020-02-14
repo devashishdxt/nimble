@@ -1,16 +1,92 @@
+#![deny(missing_docs, unsafe_code, unstable_features)]
+//! # Nimble
+//!
+//! Async friendly, simple and fast binary encoding/decoding in Rust.
+//!
+//! ## Binary encoding scheme
+//!
+//! This crate uses a minimal binary encoding scheme. For example, consider the following `struct`:
+//!
+//! ```rust
+//! struct MyStruct {
+//!     a: u8,
+//!     b: u16,
+//! }
+//! ```
+//!
+//! `encode()` will serialize this into `Vec` of size `3` (which is the sum of sizes of `u8` and `u16`).
+//!
+//! Similarly, for types which can have dynamic size (`Vec`, `String`, etc.), `encode()` prepends the size of encoded value
+//! as `u64`.
+//!
+//! > Note: `nimble`, by default, uses [big endian](https://en.wikipedia.org/wiki/Endianness#Big-endian) order to encode
+//! values.
+//!
+//! ## Usage
+//!
+//! Add `nimble` in your `Cargo.toml`'s `dependencies` section:
+//!
+//! ```toml
+//! [dependencies]
+//! nimble = { version = "0.1", features = ["derive"] }
+//! ```
+//!
+//! For encoding and decoding, any type must implement two traits provided by this crate, i.e., `Encode` and `Decode`. For
+//! convenience, `nimble` provides `derive` macros (only when `"derive"` feature is enabled) to implement these traits.
+//!
+//! ```rust,ignore
+//! use nimble::{Encode, Decode};
+//!
+//! #[derive(Encode, Decode)]
+//! struct MyStruct {
+//!     a: u8,
+//!     b: u16,
+//! }
+//! ```
+//!
+//! Now you can use [`encode()`](fn.encode.html) and [`decode()`](fn.decode.html) functions to encode and decode values of `MyStruct`. In addition to this, you
+//! can also use [`MyStruct::encode_to()`](trait.Encode.html#tymethod.encode_to) function to encode values directly to a type implementing `AsyncWrite` and
+//! [`MyStruct::decode_from()`](trait.Decode.html#tymethod.decode_from) function to decode values directly from a type implementing `AsyncRead`.
+//!
+//! > Note: Most of the functions exposed by this crate are `async` functions and returns `Future` values. So, you'll need
+//! an executor to drive the `Future` returned from these functions. `async-std` and `tokio` are two popular options.
+//!
+//! ### Features
+//!
+//! - `tokio`: Select this feature when you are using `tokio`'s executor to drive `Future` values returned by functions in
+//!   this crate.
+//!   - **Enabled** by default.
+//! - `async-std`: Select this feature when you are using `async-std`'s executor to drive `Future` values returned by
+//!   functions in this crate.
+//!   - **Disabled** by default.
+//!
+//! > Note: Features `tokio` and `async-std` are mutually exclusive, i.e., only one of them can be enabled at a time. Compilation
+//! will fail if either both of them are enabled or none of them are enabled.
+#[cfg(all(feature = "async-std", feature = "tokio"))]
+compile_error!("Features `async-std` and `tokio` are mutually exclusive");
+
+#[cfg(not(any(feature = "async-std", feature = "tokio")))]
+compile_error!("Either feature `async-std` or `tokio` must be enabled for this crate");
+
 mod decode;
 mod encode;
 mod error;
+
 pub mod io;
 
 #[cfg(feature = "derive")]
-pub use nimble_derive::*;
+pub use nimble_derive::{Decode, Encode};
 
+/// Utility macro for implementing [`Encode`](trait.Encode.html) and [`Decode`](trait.Decode.html) traits.
 pub use async_trait::async_trait;
-pub use decode::Decode;
-pub use encode::Encode;
-pub use error::{Error, Result};
 
+pub use {
+    decode::Decode,
+    encode::Encode,
+    error::{Error, Result},
+};
+
+/// Encodes a value in a `Vec`
 pub async fn encode<E: Encode + ?Sized>(value: &E) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(value.size());
     // This will never fail because `encode_to()` returns `Err` only then there is an IO error which cannot happen when
@@ -22,8 +98,8 @@ pub async fn encode<E: Encode + ?Sized>(value: &E) -> Vec<u8> {
 }
 
 #[inline]
-#[allow(clippy::useless_asref)]
-pub async fn decode<D: Decode>(bytes: &[u8]) -> Result<D> {
+/// Decodes a value from bytes
+pub async fn decode<D: Decode, T: AsRef<[u8]>>(bytes: T) -> Result<D> {
     D::decode_from(&mut bytes.as_ref()).await
 }
 
@@ -40,7 +116,7 @@ mod tests {
                 let original = random::<$type>();
                 let encoded = encode(&original).await;
                 assert_eq!(original.size(), encoded.len());
-                let decoded = decode::<$type>(&encoded).await.unwrap();
+                let decoded: $type = decode(&encoded).await.unwrap();
                 assert_eq!(original, decoded, "Invalid encoding/decoding");
             }
         };
@@ -85,7 +161,7 @@ mod tests {
         let original: Option<u8> = None;
         let encoded = encode(&original).await;
         assert_eq!(original.size(), encoded.len());
-        let decoded = decode::<Option<u8>>(&encoded).await.unwrap();
+        let decoded: Option<u8> = decode(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 
@@ -94,7 +170,7 @@ mod tests {
         let original: Option<u8> = Some(random());
         let encoded = encode(&original).await;
         assert_eq!(original.size(), encoded.len());
-        let decoded = decode::<Option<u8>>(&encoded).await.unwrap();
+        let decoded: Option<u8> = decode(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 
@@ -103,7 +179,7 @@ mod tests {
         let original: Result<u8, u8> = Ok(random());
         let encoded = encode(&original).await;
         assert_eq!(original.size(), encoded.len());
-        let decoded = decode::<Result<u8, u8>>(&encoded).await.unwrap();
+        let decoded: Result<u8, u8> = decode(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 
@@ -112,7 +188,7 @@ mod tests {
         let original: Result<u8, u8> = Err(random());
         let encoded = encode(&original).await;
         assert_eq!(original.size(), encoded.len());
-        let decoded = decode::<Result<u8, u8>>(&encoded).await.unwrap();
+        let decoded: Result<u8, u8> = decode(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 
@@ -121,7 +197,7 @@ mod tests {
         let original = [1i32, 2i32, 3i32];
         let encoded = encode(&original).await;
         assert_eq!(original.size(), encoded.len());
-        let decoded = decode::<[i32; 3]>(&encoded).await.unwrap();
+        let decoded: [i32; 3] = decode(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 
@@ -130,7 +206,7 @@ mod tests {
         let original = vec![1, 2, 3];
         let encoded = encode(&original).await;
         assert_eq!(original.size(), encoded.len());
-        let decoded = decode::<Vec<i32>>(&encoded).await.unwrap();
+        let decoded: Vec<i32> = decode(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 
@@ -139,7 +215,7 @@ mod tests {
         let original = [1i32, 2i32, 3i32];
         let encoded = encode(&original[..]).await;
         assert_eq!(original[..].size(), encoded.len());
-        let decoded = decode::<Vec<i32>>(&encoded).await.unwrap();
+        let decoded: Vec<i32> = decode(&encoded).await.unwrap();
         assert_eq!(original.to_vec(), decoded, "Invalid encoding/decoding");
     }
 
@@ -148,7 +224,7 @@ mod tests {
         let original = "hello";
         let encoded = encode(original).await;
         assert_eq!(original.size(), encoded.len());
-        let decoded = decode::<String>(&encoded).await.unwrap();
+        let decoded: String = decode(&encoded).await.unwrap();
         assert_eq!(original.to_string(), decoded, "Invalid encoding/decoding");
     }
 
@@ -157,7 +233,7 @@ mod tests {
         let original = vec!["hello".to_string(), "world".to_string()];
         let encoded = encode(&original).await;
         assert_eq!(original.size(), encoded.len());
-        let decoded = decode::<Vec<String>>(&encoded).await.unwrap();
+        let decoded: Vec<String> = decode(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 
@@ -166,7 +242,7 @@ mod tests {
         let original = Box::new("10".to_string());
         let encoded = encode(&original).await;
         assert_eq!(original.size(), encoded.len());
-        let decoded = decode::<Box<String>>(&encoded).await.unwrap();
+        let decoded: Box<String> = decode(&encoded).await.unwrap();
         assert_eq!(original, decoded, "Invalid encoding/decoding");
     }
 }

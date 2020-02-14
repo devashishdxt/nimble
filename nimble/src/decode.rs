@@ -10,7 +10,17 @@ use crate::{
 };
 
 #[async_trait]
+/// Trait for decoding values
 pub trait Decode: Sized {
+    /// Decodes values from reader
+    ///
+    /// ## Equivalent to:
+    ///
+    /// ```
+    /// async fn decode_from<R>(reader: R) -> Result<Self>
+    /// where
+    ///     R: Read + Unpin + Send
+    /// ```
     async fn decode_from<R>(reader: R) -> Result<Self>
     where
         R: Read + Unpin + Send;
