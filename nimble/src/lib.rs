@@ -92,20 +92,25 @@ pub async fn decode<D: Decode, T: AsRef<[u8]>>(bytes: T) -> Result<D> {
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "tokio"))]
 mod tests {
     use rand::random;
 
     use crate::{decode, encode, Encode};
 
+    use futures_executor as executor;
+
     macro_rules! primitive_test {
         ($type: ty, $name: ident) => {
-            #[tokio::test]
-            async fn $name() {
-                let original = random::<$type>();
-                let encoded = encode(&original).await;
-                assert_eq!(original.size(), encoded.len());
-                let decoded: $type = decode(&encoded).await.unwrap();
-                assert_eq!(original, decoded, "Invalid encoding/decoding");
+            #[test]
+            fn $name() {
+                executor::block_on(async {
+                    let original = random::<$type>();
+                    let encoded = encode(&original).await;
+                    assert_eq!(original.size(), encoded.len());
+                    let decoded: $type = decode(&encoded).await.unwrap();
+                    assert_eq!(original, decoded, "Invalid encoding/decoding");
+                });
             }
         };
     }
@@ -144,93 +149,113 @@ mod tests {
     primitive_test!([bool; 32], bool_arr_test);
     primitive_test!([char; 32], char_arr_test);
 
-    #[tokio::test]
-    async fn option_none_test() {
-        let original: Option<u8> = None;
-        let encoded = encode(&original).await;
-        assert_eq!(original.size(), encoded.len());
-        let decoded: Option<u8> = decode(&encoded).await.unwrap();
-        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    #[test]
+    fn option_none_test() {
+        executor::block_on(async {
+            let original: Option<u8> = None;
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: Option<u8> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
     }
 
-    #[tokio::test]
-    async fn option_some_test() {
-        let original: Option<u8> = Some(random());
-        let encoded = encode(&original).await;
-        assert_eq!(original.size(), encoded.len());
-        let decoded: Option<u8> = decode(&encoded).await.unwrap();
-        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    #[test]
+    fn option_some_test() {
+        executor::block_on(async {
+            let original: Option<u8> = Some(random());
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: Option<u8> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
     }
 
-    #[tokio::test]
-    async fn result_ok_test() {
-        let original: Result<u8, u8> = Ok(random());
-        let encoded = encode(&original).await;
-        assert_eq!(original.size(), encoded.len());
-        let decoded: Result<u8, u8> = decode(&encoded).await.unwrap();
-        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    #[test]
+    fn result_ok_test() {
+        executor::block_on(async {
+            let original: Result<u8, u8> = Ok(random());
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: Result<u8, u8> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
     }
 
-    #[tokio::test]
-    async fn result_err_test() {
-        let original: Result<u8, u8> = Err(random());
-        let encoded = encode(&original).await;
-        assert_eq!(original.size(), encoded.len());
-        let decoded: Result<u8, u8> = decode(&encoded).await.unwrap();
-        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    #[test]
+    fn result_err_test() {
+        executor::block_on(async {
+            let original: Result<u8, u8> = Err(random());
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: Result<u8, u8> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
     }
 
-    #[tokio::test]
-    async fn fixed_arr_test() {
-        let original = [1i32, 2i32, 3i32];
-        let encoded = encode(&original).await;
-        assert_eq!(original.size(), encoded.len());
-        let decoded: [i32; 3] = decode(&encoded).await.unwrap();
-        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    #[test]
+    fn fixed_arr_test() {
+        executor::block_on(async {
+            let original = [1i32, 2i32, 3i32];
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: [i32; 3] = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
     }
 
-    #[tokio::test]
-    async fn vec_test() {
-        let original = vec![1, 2, 3];
-        let encoded = encode(&original).await;
-        assert_eq!(original.size(), encoded.len());
-        let decoded: Vec<i32> = decode(&encoded).await.unwrap();
-        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    #[test]
+    fn vec_test() {
+        executor::block_on(async {
+            let original = vec![1, 2, 3];
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: Vec<i32> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
     }
 
-    #[tokio::test]
-    async fn slice_test() {
-        let original = [1i32, 2i32, 3i32];
-        let encoded = encode(&original[..]).await;
-        assert_eq!(original[..].size(), encoded.len());
-        let decoded: Vec<i32> = decode(&encoded).await.unwrap();
-        assert_eq!(original.to_vec(), decoded, "Invalid encoding/decoding");
+    #[test]
+    fn slice_test() {
+        executor::block_on(async {
+            let original = [1i32, 2i32, 3i32];
+            let encoded = encode(&original[..]).await;
+            assert_eq!(original[..].size(), encoded.len());
+            let decoded: Vec<i32> = decode(&encoded).await.unwrap();
+            assert_eq!(original.to_vec(), decoded, "Invalid encoding/decoding");
+        });
     }
 
-    #[tokio::test]
-    async fn string_test() {
-        let original = "hello";
-        let encoded = encode(original).await;
-        assert_eq!(original.size(), encoded.len());
-        let decoded: String = decode(&encoded).await.unwrap();
-        assert_eq!(original.to_string(), decoded, "Invalid encoding/decoding");
+    #[test]
+    fn string_test() {
+        executor::block_on(async {
+            let original = "hello";
+            let encoded = encode(original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: String = decode(&encoded).await.unwrap();
+            assert_eq!(original.to_string(), decoded, "Invalid encoding/decoding");
+        })
     }
 
-    #[tokio::test]
-    async fn vec_string_test() {
-        let original = vec!["hello".to_string(), "world".to_string()];
-        let encoded = encode(&original).await;
-        assert_eq!(original.size(), encoded.len());
-        let decoded: Vec<String> = decode(&encoded).await.unwrap();
-        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    #[test]
+    fn vec_string_test() {
+        executor::block_on(async {
+            let original = vec!["hello".to_string(), "world".to_string()];
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: Vec<String> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        })
     }
 
-    #[tokio::test]
-    async fn box_test() {
-        let original = Box::new("10".to_string());
-        let encoded = encode(&original).await;
-        assert_eq!(original.size(), encoded.len());
-        let decoded: Box<String> = decode(&encoded).await.unwrap();
-        assert_eq!(original, decoded, "Invalid encoding/decoding");
+    #[test]
+    fn box_test() {
+        executor::block_on(async {
+            let original = Box::new("10".to_string());
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: Box<String> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
     }
 }
