@@ -18,9 +18,6 @@ struct MyStruct {
 Similarly, for types which can have dynamic size (`Vec`, `String`, etc.), `encode()` prepends the size of encoded value
 as `u64`.
 
-> Note: `nimble`, by default, uses [big endian](https://en.wikipedia.org/wiki/Endianness#Big-endian) order to encode
-values.
-
 ## Usage
 
 Add `nimble` in your `Cargo.toml`'s `dependencies` section:
