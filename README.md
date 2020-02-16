@@ -27,6 +27,13 @@ Add `nimble` in your `Cargo.toml`'s `dependencies` section:
 nimble = { version = "0.1", features = ["derive"] }
 ```
 
+Or, if you are in an environment based on tokio, use:
+
+```toml
+[dependencies]
+nimble = { version = "0.1", features = ["derive", "tokio"] }
+```
+
 For encoding and decoding, any type must implement two traits provided by this crate, i.e., `Encode` and `Decode`. For
 convenience, `nimble` provides `derive` macros (only when `"derive"` feature is enabled) to implement these traits.
 
@@ -51,15 +58,9 @@ an executor to drive the `Future` returned from these functions. `async-std` and
 
 - `tokio`: Select this feature when you are using `tokio`'s executor to drive `Future` values returned by functions in
   this crate.
-  - **Enabled** by default.
-- `async-std`: Select this feature when you are using `async-std`'s executor to drive `Future` values returned by
-  functions in this crate.
   - **Disabled** by default.
 - `derive`: Enables derive macros for implementing `Encode` and `Decode` traits.
   - **Disabled** by default.
-
-> Note: Features `tokio` and `async-std` are mutually exclusive, i.e., only one of them can be enabled at a time.
-Compilation will fail if either both of them are enabled or none of them are enabled.
 
 ## License
 
