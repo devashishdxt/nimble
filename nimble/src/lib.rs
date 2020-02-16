@@ -78,7 +78,7 @@ mod error;
 
 pub mod io;
 
-#[cfg(feature = "derive")]
+#[cfg(any(test, feature = "derive"))]
 pub use nimble_derive::{Decode, Encode};
 
 /// Utility macro for implementing [`Encode`](trait.Encode.html) and [`Decode`](trait.Decode.html) traits.
