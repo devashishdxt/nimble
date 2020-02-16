@@ -31,6 +31,17 @@ macro_rules! impl_primitive {
         $(
             #[async_trait]
             impl Decode for $type {
+                #[cfg(feature = "little-endian")]
+                async fn decode_from<R>(mut reader: R) -> Result<Self>
+                where
+                    R: Read + Unpin + Send
+                {
+                    let mut bytes = [0u8; core::mem::size_of::<$type>()];
+                    reader.read_exact(&mut bytes).await?;
+                    Ok(<$type>::from_le_bytes(bytes))
+                }
+
+                #[cfg(feature = "big-endian")]
                 async fn decode_from<R>(mut reader: R) -> Result<Self>
                 where
                     R: Read + Unpin + Send
@@ -48,27 +59,21 @@ impl_primitive!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize);
 
 #[async_trait]
 impl Decode for bool {
-    async fn decode_from<R>(mut reader: R) -> Result<Self>
+    async fn decode_from<R>(reader: R) -> Result<Self>
     where
         R: Read + Unpin + Send,
     {
-        let mut bytes = [0u8; core::mem::size_of::<u8>()];
-        reader.read_exact(&mut bytes).await?;
-        Ok(<u8>::from_be_bytes(bytes) != 0)
+        Ok(<u8>::decode_from(reader).await? != 0)
     }
 }
 
 #[async_trait]
 impl Decode for char {
-    async fn decode_from<R>(mut reader: R) -> Result<Self>
+    async fn decode_from<R>(reader: R) -> Result<Self>
     where
         R: Read + Unpin + Send,
     {
-        let mut bytes = [0u8; core::mem::size_of::<u32>()];
-        reader.read_exact(&mut bytes).await?;
-
-        let code = <u32>::from_be_bytes(bytes);
-
+        let code = <u32>::decode_from(reader).await?;
         core::char::from_u32(code).ok_or_else(|| Error::InvalidChar(code))
     }
 }

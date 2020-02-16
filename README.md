@@ -52,15 +52,25 @@ an executor to drive the `Future` returned from these functions. `async-std` and
 
 ### Features
 
+- `little-endian`: Enables [little endian](https://en.wikipedia.org/wiki/Endianness#Little-endian) ordering to encode
+  values.
+  - **Enabled** by default.
+- `big-endian`: Enables [big endian](https://en.wikipedia.org/wiki/Endianness#Big-endian) ordering to encode values.
+  - **Disabled** by default.
 - `tokio`: Select this feature when you are using `tokio`'s executor to drive `Future` values returned by functions in
   this crate.
   - **Enabled** by default.
 - `async-std`: Select this feature when you are using `async-std`'s executor to drive `Future` values returned by
   functions in this crate.
   - **Disabled** by default.
+- `derive`: Enables derive macros for implementing `Encode` and `Decode` traits.
+  - **Disabled** by default.
 
-> Note: Features `tokio` and `async-std` are mutually exclusive, i.e., only one of them can be enabled at a time.
-Compilation will fail if either both of them are enabled or none of them are enabled.
+> Note: 
+> - Features `little-endian` and `big-endian` are mutually exclusive, i.e., only one of them can be enabled at a time.
+>   Compilation will fail if either both of them are enabled or none of them are enabled.
+> - Features `tokio` and `async-std` are mutually exclusive, i.e., only one of them can be enabled at a time.
+>   Compilation will fail if either both of them are enabled or none of them are enabled.
 
 ## License
 

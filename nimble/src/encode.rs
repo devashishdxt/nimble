@@ -36,6 +36,15 @@ macro_rules! impl_primitive {
                     core::mem::size_of::<Self>()
                 }
 
+                #[cfg(feature = "little-endian")]
+                async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
+                where
+                    W: Write + Unpin + Send,
+                {
+                    writer.write(&self.to_le_bytes()).await.map_err(Into::into)
+                }
+
+                #[cfg(feature = "big-endian")]
                 async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
                 where
                     W: Write + Unpin + Send,

@@ -1,4 +1,5 @@
-#![deny(missing_docs, unsafe_code, unstable_features)]
+#![forbid(unsafe_code)]
+#![deny(missing_docs, unstable_features)]
 //! # Nimble
 //!
 //! Async friendly, simple and fast binary encoding/decoding in Rust.
@@ -7,7 +8,7 @@
 //!
 //! This crate uses a minimal binary encoding scheme. For example, consider the following `struct`:
 //!
-//! ```rust
+//! ```
 //! struct MyStruct {
 //!     a: u8,
 //!     b: u16,
@@ -44,24 +45,40 @@
 //! }
 //! ```
 //!
-//! Now you can use [`encode()`](fn.encode.html) and [`decode()`](fn.decode.html) functions to encode and decode values of `MyStruct`. In addition to this, you
-//! can also use [`MyStruct::encode_to()`](trait.Encode.html#tymethod.encode_to) function to encode values directly to a type implementing `AsyncWrite` and
-//! [`MyStruct::decode_from()`](trait.Decode.html#tymethod.decode_from) function to decode values directly from a type implementing `AsyncRead`.
+//! Now you can use `encode()` and `decode()` functions to encode and decode values of `MyStruct`. In addition to this, you
+//! can also use `MyStruct::encode_to()` function to encode values directly to a type implementing `AsyncWrite` and
+//! `MyStruct::decode_from()` function to decode values directly from a type implementing `AsyncRead`.
 //!
 //! > Note: Most of the functions exposed by this crate are `async` functions and returns `Future` values. So, you'll need
 //! an executor to drive the `Future` returned from these functions. `async-std` and `tokio` are two popular options.
 //!
 //! ### Features
 //!
+//! - `little-endian`: Enables [little endian](https://en.wikipedia.org/wiki/Endianness#Little-endian) ordering to encode
+//!   values.
+//!   - **Enabled** by default.
+//! - `big-endian`: Enables [big endian](https://en.wikipedia.org/wiki/Endianness#Big-endian) ordering to encode values.
+//!   - **Disabled** by default.
 //! - `tokio`: Select this feature when you are using `tokio`'s executor to drive `Future` values returned by functions in
 //!   this crate.
 //!   - **Enabled** by default.
 //! - `async-std`: Select this feature when you are using `async-std`'s executor to drive `Future` values returned by
 //!   functions in this crate.
 //!   - **Disabled** by default.
+//! - `derive`: Enables derive macros for implementing `Encode` and `Decode` traits.
+//!   - **Disabled** by default.
 //!
-//! > Note: Features `tokio` and `async-std` are mutually exclusive, i.e., only one of them can be enabled at a time. Compilation
-//! will fail if either both of them are enabled or none of them are enabled.
+//! > Note:
+//! > - Features `little-endian` and `big-endian` are mutually exclusive, i.e., only one of them can be enabled at a time.
+//! >   Compilation will fail if either both of them are enabled or none of them are enabled.
+//! > - Features `tokio` and `async-std` are mutually exclusive, i.e., only one of them can be enabled at a time.
+//! >   Compilation will fail if either both of them are enabled or none of them are enabled.
+#[cfg(all(feature = "little-endian", feature = "big-endian"))]
+compile_error!("Features `little-endian` and `big-endian` are mutually exclusive");
+
+#[cfg(not(any(feature = "little-endian", feature = "big-endian")))]
+compile_error!("Either feature `little-endian` or `big-endian` must be enabled for this crate");
+
 #[cfg(all(feature = "async-std", feature = "tokio"))]
 compile_error!("Features `async-std` and `tokio` are mutually exclusive");
 
