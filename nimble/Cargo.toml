@@ -23,7 +23,6 @@ async-std = { version = "1.5", optional = true }
 
 [dev-dependencies]
 rand = "0.7"
-nimble-derive = { path = "../nimble-derive" }
 tokio = { version = "0.2", features = ["rt-threaded", "macros"] }
 
 [features]
