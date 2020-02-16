@@ -53,21 +53,10 @@
 //!
 //! - `tokio`: Select this feature when you are using `tokio`'s executor to drive `Future` values returned by functions in
 //!   this crate.
-//!   - **Enabled** by default.
-//! - `async-std`: Select this feature when you are using `async-std`'s executor to drive `Future` values returned by
-//!   functions in this crate.
 //!   - **Disabled** by default.
 //! - `derive`: Enables derive macros for implementing `Encode` and `Decode` traits.
 //!   - **Disabled** by default.
 //!
-//! > Note: Features `tokio` and `async-std` are mutually exclusive, i.e., only one of them can be enabled at a time.
-//! Compilation will fail if either both of them are enabled or none of them are enabled.
-#[cfg(all(feature = "async-std", feature = "tokio"))]
-compile_error!("Features `async-std` and `tokio` are mutually exclusive");
-
-#[cfg(not(any(feature = "async-std", feature = "tokio")))]
-compile_error!("Either feature `async-std` or `tokio` must be enabled for this crate");
-
 mod config;
 mod decode;
 mod encode;

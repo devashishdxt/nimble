@@ -19,12 +19,11 @@ async-trait = "0.1"
 arrayvec = { version = "0.5", features = ["array-sizes-33-128"] }
 nimble-derive = { path = "../nimble-derive", optional = true }
 tokio = { version = "0.2", optional = true, features = ["io-util"] }
-async-std = { version = "1.5", optional = true }
+futures-util = { version = "0.3", features = ["io"] }
 
 [dev-dependencies]
 rand = "0.7"
 tokio = { version = "0.2", features = ["rt-threaded", "macros"] }
 
 [features]
-default = ["tokio"]
 derive = ["nimble-derive"]
