@@ -23,7 +23,7 @@ futures-util = { version = "0.3", features = ["io"] }
 
 [dev-dependencies]
 rand = "0.7"
-futures-executor = { version = "0.3" }
+futures-executor = "0.3"
 
 [features]
 derive = ["nimble-derive"]

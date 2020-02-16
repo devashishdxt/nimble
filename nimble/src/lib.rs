@@ -29,6 +29,13 @@
 //! nimble = { version = "0.1", features = ["derive"] }
 //! ```
 //!
+//! Or, if you are in an environment based on `tokio`, use:
+//!
+//! ```toml
+//! [dependencies]
+//! nimble = { version = "0.1", features = ["derive", "tokio"] }
+//! ```
+//!
 //! For encoding and decoding, any type must implement two traits provided by this crate, i.e., `Encode` and `Decode`. For
 //! convenience, `nimble` provides `derive` macros (only when `"derive"` feature is enabled) to implement these traits.
 //!

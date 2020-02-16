@@ -27,7 +27,7 @@ Add `nimble` in your `Cargo.toml`'s `dependencies` section:
 nimble = { version = "0.1", features = ["derive"] }
 ```
 
-Or, if you are in an environment based on tokio, use:
+Or, if you are in an environment based on `tokio`, use:
 
 ```toml
 [dependencies]

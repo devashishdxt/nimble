@@ -10,4 +10,4 @@ edition = "2018"
 
 [dev-dependencies]
 nimble = { path = "../nimble", features = ["derive"] }
-tokio = { version = "0.2", features = ["rt-threaded", "macros"] }
+futures-executor = "0.3"
