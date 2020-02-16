@@ -26,7 +26,5 @@ rand = "0.7"
 tokio = { version = "0.2", features = ["rt-threaded", "macros"] }
 
 [features]
-default = ["little-endian", "tokio"]
+default = ["tokio"]
 derive = ["nimble-derive"]
-little-endian = []
-big-endian = []

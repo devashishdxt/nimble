@@ -39,7 +39,7 @@ impl<'a> DecodeFromExpr for Context<'a> {
                     });
 
                 quote! {
-                    let option = <u32>::decode_from(&mut reader).await?;
+                    let option = <u32>::decode_from(config, &mut reader).await?;
 
                     match option {
                         #(#match_exprs,)*
@@ -66,12 +66,12 @@ fn decode_bytes_expr<T: ToTokens>(
                     .expect("Named fields are expected to have identifiers");
 
                 quote_spanned! {f.span()=>
-                    #field_name: <#field_type>::decode_from(&mut reader).await?
+                    #field_name: <#field_type>::decode_from(config, &mut reader).await?
                 }
             }
             FieldsType::Unnamed => {
                 quote_spanned! {f.span()=>
-                    <#field_type>::decode_from(&mut reader).await?
+                    <#field_type>::decode_from(config, &mut reader).await?
                 }
             }
             FieldsType::Unit => {

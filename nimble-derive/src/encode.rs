@@ -37,7 +37,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 #size
             }
 
-            async fn encode_to<W>(&self, mut writer: W) -> nimble::Result<usize>
+            async fn encode_to<W>(&self, config: &nimble::Config, mut writer: W) -> nimble::Result<usize>
             where
                 W: nimble::io::Write + Unpin + Send,
             {
@@ -49,53 +49,3 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Hand the output tokens back to the compiler
     proc_macro::TokenStream::from(expanded)
 }
-
-// // Generate expression for encoding value to byte array and writing it to writer.
-// fn encode_to_impl(data: &Data) -> TokenStream {
-//     match *data {
-//         Data::Struct(ref data) => {
-//             match data.fields {
-//                 Fields::Named(ref fields) => {
-//                     // Expands to an expression like
-//                     //
-//                     //     0 + self.a.encode_to(&mut writer).await? + self.b.encode_to(&mut writer).await?
-//                     //
-//                     // but using fully qualified function call syntax.
-//                     //
-//                     // We take some care to use the span of each `syn::Field` as the span of the corresponding `size`
-//                     // call. This way if one of the field types does not implement `Encode` then the compiler's error
-//                     // message underlines which field it is.
-//                     let recurse = fields.named.iter().map(|f| {
-//                         let name = &f.ident;
-//                         quote_spanned! {f.span()=>
-//                             Encode::encode_to(&self.#name, &mut writer).await?
-//                         }
-//                     });
-//                     quote! {
-//                         Ok(0 #(+ #recurse)*)
-//                     }
-//                 }
-//                 Fields::Unnamed(ref fields) => {
-//                     // Expands to an expression like
-//                     //
-//                     //     0 + self.0.encode_to(&mut writer).await? + self.1.encode_to(&mut writer).await?
-//                     let recurse = fields.unnamed.iter().enumerate().map(|(i, f)| {
-//                         let index = Index::from(i);
-//                         quote_spanned! {f.span()=>
-//                             Encode::encode_to(&self.#index, &mut writer).await?
-//                         }
-//                     });
-//                     quote! {
-//                         Ok(0 #(+ #recurse)*)
-//                     }
-//                 }
-//                 Fields::Unit => {
-//                     // Unit structs always generate encoded byte array of size zero.
-//                     quote!(Ok(0))
-//                 }
-//             }
-//         }
-//         Data::Enum(_) => quote! {},
-//         Data::Union(_) => unimplemented!(),
-//     }
-// }

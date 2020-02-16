@@ -54,11 +54,6 @@
 //!
 //! ### Features
 //!
-//! - `little-endian`: Enables [little endian](https://en.wikipedia.org/wiki/Endianness#Little-endian) ordering to encode
-//!   values.
-//!   - **Enabled** by default.
-//! - `big-endian`: Enables [big endian](https://en.wikipedia.org/wiki/Endianness#Big-endian) ordering to encode values.
-//!   - **Disabled** by default.
 //! - `tokio`: Select this feature when you are using `tokio`'s executor to drive `Future` values returned by functions in
 //!   this crate.
 //!   - **Enabled** by default.
@@ -68,23 +63,15 @@
 //! - `derive`: Enables derive macros for implementing `Encode` and `Decode` traits.
 //!   - **Disabled** by default.
 //!
-//! > Note:
-//! > - Features `little-endian` and `big-endian` are mutually exclusive, i.e., only one of them can be enabled at a time.
-//! >   Compilation will fail if either both of them are enabled or none of them are enabled.
-//! > - Features `tokio` and `async-std` are mutually exclusive, i.e., only one of them can be enabled at a time.
-//! >   Compilation will fail if either both of them are enabled or none of them are enabled.
-#[cfg(all(feature = "little-endian", feature = "big-endian"))]
-compile_error!("Features `little-endian` and `big-endian` are mutually exclusive");
-
-#[cfg(not(any(feature = "little-endian", feature = "big-endian")))]
-compile_error!("Either feature `little-endian` or `big-endian` must be enabled for this crate");
-
+//! > Note: Features `tokio` and `async-std` are mutually exclusive, i.e., only one of them can be enabled at a time.
+//! Compilation will fail if either both of them are enabled or none of them are enabled.
 #[cfg(all(feature = "async-std", feature = "tokio"))]
 compile_error!("Features `async-std` and `tokio` are mutually exclusive");
 
 #[cfg(not(any(feature = "async-std", feature = "tokio")))]
 compile_error!("Either feature `async-std` or `tokio` must be enabled for this crate");
 
+mod config;
 mod decode;
 mod encode;
 mod error;
@@ -97,27 +84,25 @@ pub use nimble_derive::{Decode, Encode};
 /// Utility macro for implementing [`Encode`](trait.Encode.html) and [`Decode`](trait.Decode.html) traits.
 pub use async_trait::async_trait;
 
-pub use {
+pub use self::{
+    config::{Config, Endianness},
     decode::Decode,
     encode::Encode,
     error::{Error, Result},
 };
 
-/// Encodes a value in a `Vec`
+const DEFAULT_CONFIG: Config = Config::new_default();
+
+/// Encodes a value in a `Vec` using default configuration
+#[inline]
 pub async fn encode<E: Encode + ?Sized>(value: &E) -> Vec<u8> {
-    let mut bytes = Vec::with_capacity(value.size());
-    // This will never fail because `encode_to()` returns `Err` only then there is an IO error which cannot happen when
-    // writing to a `Vec`
-    let _ = value.encode_to(&mut bytes).await.expect(
-        "Failed to encode value. Log an issue on nimble's GitHub repository with backtrace.",
-    );
-    bytes
+    DEFAULT_CONFIG.encode(value).await
 }
 
+/// Decodes a value from bytes using default configuration
 #[inline]
-/// Decodes a value from bytes
 pub async fn decode<D: Decode, T: AsRef<[u8]>>(bytes: T) -> Result<D> {
-    D::decode_from(&mut bytes.as_ref()).await
+    DEFAULT_CONFIG.decode(bytes).await
 }
 
 #[cfg(test)]

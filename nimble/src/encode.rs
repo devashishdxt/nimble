@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     async_trait,
-    error::Result,
     io::{Write, WriteExt},
+    Config, Endianness, Result,
 };
 
 #[async_trait]
@@ -21,7 +21,7 @@ pub trait Encode {
     /// where
     ///     W: Write + Unpin + Send
     /// ```
-    async fn encode_to<W>(&self, writer: W) -> Result<usize>
+    async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
     where
         W: Write + Unpin + Send;
 }
@@ -36,20 +36,14 @@ macro_rules! impl_primitive {
                     core::mem::size_of::<Self>()
                 }
 
-                #[cfg(feature = "little-endian")]
-                async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
+                async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
                 where
                     W: Write + Unpin + Send,
                 {
-                    writer.write(&self.to_le_bytes()).await.map_err(Into::into)
-                }
-
-                #[cfg(feature = "big-endian")]
-                async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
-                where
-                    W: Write + Unpin + Send,
-                {
-                    writer.write(&self.to_be_bytes()).await.map_err(Into::into)
+                    match config.endianness {
+                        Endianness::LittleEndian => writer.write(&self.to_le_bytes()).await.map_err(Into::into),
+                        Endianness::BigEndian => writer.write(&self.to_be_bytes()).await.map_err(Into::into)
+                    }
                 }
             }
         )+
@@ -66,11 +60,11 @@ impl Encode for bool {
     }
 
     #[allow(clippy::trivially_copy_pass_by_ref)]
-    async fn encode_to<W>(&self, writer: W) -> Result<usize>
+    async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
     where
         W: Write + Unpin + Send,
     {
-        (*self as u8).encode_to(writer).await
+        (*self as u8).encode_to(config, writer).await
     }
 }
 
@@ -82,11 +76,11 @@ impl Encode for char {
     }
 
     #[allow(clippy::trivially_copy_pass_by_ref)]
-    async fn encode_to<W>(&self, writer: W) -> Result<usize>
+    async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
     where
         W: Write + Unpin + Send,
     {
-        (*self as u32).encode_to(writer).await
+        (*self as u32).encode_to(config, writer).await
     }
 }
 
@@ -102,13 +96,14 @@ where
         }
     }
 
-    async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
+    async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
     where
         W: Write + Unpin + Send,
     {
         match self {
-            None => writer.write(&[0]).await.map_err(Into::into),
-            Some(ref value) => Ok(writer.write(&[1]).await? + value.encode_to(writer).await?),
+            None => 0u8.encode_to(config, &mut writer).await.map_err(Into::into),
+            Some(ref value) => Ok(1u8.encode_to(config, &mut writer).await?
+                + value.encode_to(config, &mut writer).await?),
         }
     }
 }
@@ -126,13 +121,19 @@ where
         }
     }
 
-    async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
+    async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
     where
         W: Write + Unpin + Send,
     {
-        match _self {
-            Ok(ref value) => Ok(writer.write(&[0]).await? + value.encode_to(writer).await?),
-            Err(ref err) => Ok(writer.write(&[1]).await? + err.encode_to(writer).await?),
+        match self {
+            Ok(ref value) => {
+                Ok(0u8.encode_to(config, &mut writer).await?
+                    + value.encode_to(config, writer).await?)
+            }
+            Err(ref err) => {
+                Ok(1u8.encode_to(config, &mut writer).await?
+                    + err.encode_to(config, writer).await?)
+            }
         }
     }
 }
@@ -148,11 +149,11 @@ where
     }
 
     #[allow(clippy::ptr_arg)]
-    async fn encode_to<W>(&self, writer: W) -> Result<usize>
+    async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
     where
         W: Write + Unpin + Send,
     {
-        <[T]>::encode_to(self, writer).await
+        <[T]>::encode_to(self, config, writer).await
     }
 }
 
@@ -166,16 +167,16 @@ where
         core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
     }
 
-    async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
+    async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
     where
         W: Write + Unpin + Send,
     {
         let mut encoded = 0;
 
-        encoded += (_self.len() as u64).encode_to(&mut writer).await?;
+        encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
 
         for item in _self.iter() {
-            encoded += item.encode_to(&mut writer).await?;
+            encoded += item.encode_to(config, &mut writer).await?;
         }
 
         Ok(encoded)
@@ -190,11 +191,11 @@ impl Encode for String {
     }
 
     #[allow(clippy::ptr_arg)]
-    async fn encode_to<W>(&self, writer: W) -> Result<usize>
+    async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
     where
         W: Write + Unpin + Send,
     {
-        <str>::encode_to(self, writer).await
+        <str>::encode_to(self, config, writer).await
     }
 }
 
@@ -205,11 +206,11 @@ impl Encode for str {
         core::mem::size_of::<u64>() + self.len()
     }
 
-    async fn encode_to<W>(&self, writer: W) -> Result<usize>
+    async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
     where
         W: Write + Unpin + Send,
     {
-        self.as_bytes().encode_to(writer).await
+        self.as_bytes().encode_to(config, writer).await
     }
 }
 
@@ -222,11 +223,11 @@ macro_rules! impl_deref {
                 <T>::size(self)
             }
 
-            async fn encode_to<W>(&self, writer: W) -> Result<usize>
+            async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
             where
                 W: Write + Unpin + Send,
             {
-                <T>::encode_to(self, writer).await
+                <T>::encode_to(self, config, writer).await
             }
         }
     }
@@ -251,14 +252,14 @@ macro_rules! impl_fixed_arr {
                     self.iter().map(Encode::size).sum::<usize>()
                 }
 
-                async fn encode_to<W>(&self, mut writer: W) -> Result<usize>
+                async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
                 where
                     W: Write + Unpin + Send,
                 {
                     let mut encoded = 0;
 
                     for item in _self.iter() {
-                        encoded += item.encode_to(&mut writer).await?;
+                        encoded += item.encode_to(config, &mut writer).await?;
                     }
 
                     Ok(encoded)

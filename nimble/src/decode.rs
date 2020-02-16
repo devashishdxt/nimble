@@ -5,8 +5,8 @@ use arrayvec::ArrayVec;
 
 use crate::{
     async_trait,
-    error::{Error, Result},
     io::{Read, ReadExt},
+    Config, Endianness, Error, Result,
 };
 
 #[async_trait]
@@ -21,7 +21,7 @@ pub trait Decode: Sized {
     /// where
     ///     R: Read + Unpin + Send
     /// ```
-    async fn decode_from<R>(reader: R) -> Result<Self>
+    async fn decode_from<R>(config: &Config, reader: R) -> Result<Self>
     where
         R: Read + Unpin + Send;
 }
@@ -31,24 +31,21 @@ macro_rules! impl_primitive {
         $(
             #[async_trait]
             impl Decode for $type {
-                #[cfg(feature = "little-endian")]
-                async fn decode_from<R>(mut reader: R) -> Result<Self>
+                async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
                 where
                     R: Read + Unpin + Send
                 {
                     let mut bytes = [0u8; core::mem::size_of::<$type>()];
                     reader.read_exact(&mut bytes).await?;
-                    Ok(<$type>::from_le_bytes(bytes))
-                }
 
-                #[cfg(feature = "big-endian")]
-                async fn decode_from<R>(mut reader: R) -> Result<Self>
-                where
-                    R: Read + Unpin + Send
-                {
-                    let mut bytes = [0u8; core::mem::size_of::<$type>()];
-                    reader.read_exact(&mut bytes).await?;
-                    Ok(<$type>::from_be_bytes(bytes))
+                    match config.endianness {
+                        Endianness::LittleEndian => {
+                            Ok(<$type>::from_le_bytes(bytes))
+                        }
+                        Endianness::BigEndian => {
+                            Ok(<$type>::from_be_bytes(bytes))
+                        }
+                    }
                 }
             }
         )+
@@ -59,21 +56,21 @@ impl_primitive!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize);
 
 #[async_trait]
 impl Decode for bool {
-    async fn decode_from<R>(reader: R) -> Result<Self>
+    async fn decode_from<R>(config: &Config, reader: R) -> Result<Self>
     where
         R: Read + Unpin + Send,
     {
-        Ok(<u8>::decode_from(reader).await? != 0)
+        Ok(<u8>::decode_from(config, reader).await? != 0)
     }
 }
 
 #[async_trait]
 impl Decode for char {
-    async fn decode_from<R>(reader: R) -> Result<Self>
+    async fn decode_from<R>(config: &Config, reader: R) -> Result<Self>
     where
         R: Read + Unpin + Send,
     {
-        let code = <u32>::decode_from(reader).await?;
+        let code = <u32>::decode_from(config, reader).await?;
         core::char::from_u32(code).ok_or_else(|| Error::InvalidChar(code))
     }
 }
@@ -83,15 +80,15 @@ impl<T> Decode for Option<T>
 where
     T: Decode,
 {
-    async fn decode_from<R>(mut reader: R) -> Result<Self>
+    async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
     where
         R: Read + Unpin + Send,
     {
-        let option = u8::decode_from(&mut reader).await?;
+        let option = u8::decode_from(config, &mut reader).await?;
 
         match option {
             0 => Ok(None),
-            1 => T::decode_from(&mut reader).await.map(Some),
+            1 => T::decode_from(config, &mut reader).await.map(Some),
             _ => Err(Error::InvalidEnumVariant(option as u32)),
         }
     }
@@ -103,15 +100,15 @@ where
     T: Decode,
     E: Decode,
 {
-    async fn decode_from<R>(mut reader: R) -> Result<Self>
+    async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
     where
         R: Read + Unpin + Send,
     {
-        let option = u8::decode_from(&mut reader).await?;
+        let option = u8::decode_from(config, &mut reader).await?;
 
         match option {
-            0 => T::decode_from(&mut reader).await.map(Ok),
-            1 => E::decode_from(&mut reader).await.map(Err),
+            0 => T::decode_from(config, &mut reader).await.map(Ok),
+            1 => E::decode_from(config, &mut reader).await.map(Err),
             _ => Err(Error::InvalidEnumVariant(option as u32)),
         }
     }
@@ -122,17 +119,17 @@ impl<T> Decode for Vec<T>
 where
     T: Decode + Send,
 {
-    async fn decode_from<R>(mut reader: R) -> Result<Self>
+    async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
     where
         R: Read + Unpin + Send,
     {
-        let len = u64::decode_from(&mut reader).await?;
+        let len = u64::decode_from(config, &mut reader).await?;
         let len = usize::try_from(len).map_err(|_| Error::InvalidLength(len))?;
 
         let mut value = Vec::with_capacity(len);
 
         for _ in 0..len {
-            value.push(T::decode_from(&mut reader).await?);
+            value.push(T::decode_from(config, &mut reader).await?);
         }
 
         Ok(value)
@@ -141,11 +138,11 @@ where
 
 #[async_trait]
 impl Decode for String {
-    async fn decode_from<R>(reader: R) -> Result<Self>
+    async fn decode_from<R>(config: &Config, reader: R) -> Result<Self>
     where
         R: Read + Unpin + Send,
     {
-        let bytes = <Vec<u8>>::decode_from(reader).await?;
+        let bytes = <Vec<u8>>::decode_from(config, reader).await?;
         String::from_utf8(bytes).map_err(Into::into)
     }
 }
@@ -157,11 +154,11 @@ macro_rules! impl_deref {
         where
             T: Decode,
         {
-            async fn decode_from<R>(reader: R) -> Result<Self>
+            async fn decode_from<R>(config: &Config, reader: R) -> Result<Self>
             where
                 R: Read + Unpin + Send,
             {
-                T::decode_from(reader).await.map($func)
+                T::decode_from(config, reader).await.map($func)
             }
         }
     };
@@ -195,14 +192,14 @@ macro_rules! impl_fixed_arr {
             where
                 T: Decode + Send,
             {
-                async fn decode_from<R>(mut reader: R) -> Result<Self>
+                async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
                 where
                     R: Read + Unpin + Send,
                 {
                     let mut arr = ArrayVec::<[T; $len]>::new();
 
                     for _ in 0..$len {
-                        let value = T::decode_from(&mut reader).await?;
+                        let value = T::decode_from(config, &mut reader).await?;
                         arr.push(value)
                     }
 

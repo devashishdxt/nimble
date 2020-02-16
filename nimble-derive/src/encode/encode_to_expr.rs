@@ -35,7 +35,7 @@ impl<'a> EncodeToExpr for Context<'a> {
                         let bytes_encoding = bytes_encoding_expr(
                             fields.iter_fields(),
                             &field_prefix,
-                            Some(quote! {Encode::encode_to(& #variant_index, &mut writer).await?}),
+                            Some(quote! {Encode::encode_to(& #variant_index, config, &mut writer).await?}),
                         );
 
                         quote_spanned! {span=>
@@ -63,12 +63,12 @@ fn bytes_encoding_expr(
 
         match field_name {
             Some(field_name) => quote_spanned! {f.span()=>
-                Encode::encode_to(#field_prefix #field_name, &mut writer).await?
+                Encode::encode_to(#field_prefix #field_name, config, &mut writer).await?
             },
             None => {
                 let index = Index::from(i);
                 quote_spanned! {f.span()=>
-                    Encode::encode_to(#field_prefix #index, &mut writer).await?
+                    Encode::encode_to(#field_prefix #index, config, &mut writer).await?
                 }
             }
         }

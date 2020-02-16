@@ -28,7 +28,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         // The generated impl.
         #[nimble::async_trait]
         impl #impl_generics Decode for #name #ty_generics #where_clause {
-            async fn decode_from<R>(mut reader: R) -> nimble::Result<Self>
+            async fn decode_from<R>(config: &nimble::Config, mut reader: R) -> nimble::Result<Self>
             where
                 R: nimble::io::Read + Unpin + Send,
             {
