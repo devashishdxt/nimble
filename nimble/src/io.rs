@@ -1,4 +1,4 @@
-//! Re-exports IO traits from `tokio`/`async-std` depending on enabled feature.
+//! Re-exports IO traits from `tokio`/`futures` depending on enabled feature.
 #[cfg(not(feature = "tokio"))]
 pub use futures_util::io::{
     AsyncRead as Read, AsyncReadExt as ReadExt, AsyncWrite as Write, AsyncWriteExt as WriteExt,

@@ -31,7 +31,7 @@ Or, if you are in an environment based on `tokio`, use:
 
 ```toml
 [dependencies]
-nimble = { version = "0.2", features = ["derive", "tokio"] }
+nimble = { version = "0.2", default-features = false, features = ["derive", "tokio"] }
 ```
 
 For encoding and decoding, any type must implement two traits provided by this crate, i.e., `Encode` and `Decode`. For
@@ -56,11 +56,17 @@ an executor to drive the `Future` returned from these functions. `async-std` and
 
 ### Features
 
-- `tokio`: Select this feature when you are using `tokio`'s executor to drive `Future` values returned by functions in
-  this crate. This implements `Encode` and `Decode` using `tokio`'s `AsyncRead`/`AsyncWrite` traits.
+- `futures`: Select this feature when you want to implement `Encode` and `Decode` using `futures`'
+  `AsyncRead`/`AsyncWrite` traits.
+  - **Enabled** by default.
+- `tokio`: Select this feature when you want to implement `Encode` and `Decode` using `tokio`'s `AsyncRead`/`AsyncWrite`
+  traits.
   - **Disabled** by default.
 - `derive`: Enables derive macros for implementing `Encode` and `Decode` traits.
   - **Disabled** by default.
+
+> Note: Features `futures` and `tokio` are mutually exclusive, i.e., only one of them can be enabled at a time.
+> Compilation will fail if either both of them are enabled or none of them are enabled.
 
 ## License
 
