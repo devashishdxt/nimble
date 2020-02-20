@@ -59,7 +59,7 @@
 //! ### Features
 //!
 //! - `tokio`: Select this feature when you are using `tokio`'s executor to drive `Future` values returned by functions in
-//!   this crate.
+//!   this crate. This implements `Encode` and `Decode` using `tokio`'s `AsyncRead`/`AsyncWrite` traits.
 //!   - **Disabled** by default.
 //! - `derive`: Enables derive macros for implementing `Encode` and `Decode` traits.
 //!   - **Disabled** by default.
@@ -84,7 +84,14 @@ pub use self::{
     error::{Error, Result},
 };
 
+use self::io::{Read, Write};
+
 const DEFAULT_CONFIG: Config = Config::new_default();
+
+/// Returns default `Config`
+pub fn config<'a>() -> &'a Config {
+    &DEFAULT_CONFIG
+}
 
 /// Encodes a value in a `Vec` using default configuration
 #[inline]
@@ -92,10 +99,25 @@ pub async fn encode<E: Encode + ?Sized>(value: &E) -> Vec<u8> {
     DEFAULT_CONFIG.encode(value).await
 }
 
+/// Writes encoded byte array to writer and returns the number of bytes written
+#[inline]
+pub async fn encode_to<E: Encode + ?Sized, W: Write + Unpin + Send>(
+    value: &E,
+    writer: W,
+) -> Result<usize> {
+    DEFAULT_CONFIG.encode_to(value, writer).await
+}
+
 /// Decodes a value from bytes using default configuration
 #[inline]
 pub async fn decode<D: Decode, T: AsRef<[u8]>>(bytes: T) -> Result<D> {
     DEFAULT_CONFIG.decode(bytes).await
+}
+
+/// Decodes values from reader
+#[inline]
+pub async fn decode_from<D: Decode, R: Read + Unpin + Send>(reader: R) -> Result<D> {
+    DEFAULT_CONFIG.decode_from(reader).await
 }
 
 #[cfg(test)]

@@ -57,7 +57,7 @@ an executor to drive the `Future` returned from these functions. `async-std` and
 ### Features
 
 - `tokio`: Select this feature when you are using `tokio`'s executor to drive `Future` values returned by functions in
-  this crate.
+  this crate. This implements `Encode` and `Decode` using `tokio`'s `AsyncRead`/`AsyncWrite` traits.
   - **Disabled** by default.
 - `derive`: Enables derive macros for implementing `Encode` and `Decode` traits.
   - **Disabled** by default.
@@ -66,8 +66,8 @@ an executor to drive the `Future` returned from these functions. `async-std` and
 
 Licensed under either of
 
-- Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license (http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0 [LICENSE-APACHE](LICENSE-APACHE)
+- MIT license [LICENSE-MIT](LICENSE-MIT)
 
 at your option.
 

@@ -1,4 +1,7 @@
-use crate::{Decode, Encode, Result};
+use crate::{
+    io::{Read, Write},
+    Decode, Encode, Result,
+};
 
 /// Encoding/decoding configuration
 #[derive(Debug, Clone)]
@@ -28,9 +31,25 @@ impl Config {
     }
 
     #[inline]
+    /// Writes encoded byte array to writer and returns the number of bytes written
+    pub async fn encode_to<E: Encode + ?Sized, W: Write + Unpin + Send>(
+        &self,
+        value: &E,
+        writer: W,
+    ) -> Result<usize> {
+        value.encode_to(self, writer).await
+    }
+
+    #[inline]
     /// Decodes a value from bytes
     pub async fn decode<D: Decode, T: AsRef<[u8]>>(&self, bytes: T) -> Result<D> {
-        D::decode_from(self, &mut bytes.as_ref()).await
+        self.decode_from(&mut bytes.as_ref()).await
+    }
+
+    #[inline]
+    /// Decodes values from reader
+    pub async fn decode_from<D: Decode, R: Read + Unpin + Send>(&self, reader: R) -> Result<D> {
+        D::decode_from(self, reader).await
     }
 }
 
