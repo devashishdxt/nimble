@@ -26,14 +26,14 @@
 //!
 //! ```toml
 //! [dependencies]
-//! nimble = { version = "0.1", features = ["derive"] }
+//! nimble = { version = "0.2", features = ["derive"] }
 //! ```
 //!
 //! Or, if you are in an environment based on `tokio`, use:
 //!
 //! ```toml
 //! [dependencies]
-//! nimble = { version = "0.1", features = ["derive", "tokio"] }
+//! nimble = { version = "0.2", features = ["derive", "tokio"] }
 //! ```
 //!
 //! For encoding and decoding, any type must implement two traits provided by this crate, i.e., `Encode` and `Decode`. For
@@ -63,7 +63,6 @@
 //!   - **Disabled** by default.
 //! - `derive`: Enables derive macros for implementing `Encode` and `Decode` traits.
 //!   - **Disabled** by default.
-//!
 mod config;
 mod decode;
 mod encode;

@@ -24,14 +24,14 @@ Add `nimble` in your `Cargo.toml`'s `dependencies` section:
 
 ```toml
 [dependencies]
-nimble = { version = "0.1", features = ["derive"] }
+nimble = { version = "0.2", features = ["derive"] }
 ```
 
 Or, if you are in an environment based on `tokio`, use:
 
 ```toml
 [dependencies]
-nimble = { version = "0.1", features = ["derive", "tokio"] }
+nimble = { version = "0.2", features = ["derive", "tokio"] }
 ```
 
 For encoding and decoding, any type must implement two traits provided by this crate, i.e., `Encode` and `Decode`. For
@@ -66,8 +66,8 @@ an executor to drive the `Future` returned from these functions. `async-std` and
 
 Licensed under either of
 
-- Apache License, Version 2.0 [LICENSE-APACHE](LICENSE-APACHE)
-- MIT license [LICENSE-MIT](LICENSE-MIT)
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
 
 at your option.
 
