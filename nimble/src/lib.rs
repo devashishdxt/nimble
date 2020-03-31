@@ -134,11 +134,12 @@ pub async fn decode_from<D: Decode, R: Read + Unpin + Send>(reader: R) -> Result
 #[cfg(test)]
 #[cfg(not(feature = "tokio"))]
 mod tests {
+    use std::collections::{BTreeSet, BinaryHeap, HashSet, LinkedList, VecDeque};
+
+    use futures_executor as executor;
     use rand::random;
 
     use crate::{decode, encode, Encode};
-
-    use futures_executor as executor;
 
     macro_rules! primitive_test {
         ($type: ty, $name: ident) => {
@@ -307,6 +308,77 @@ mod tests {
             assert_eq!(original.size(), encoded.len());
             let decoded: (String, u8) = decode(&encoded).await.unwrap();
             assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn vec_deque_test() {
+        executor::block_on(async {
+            let mut original = VecDeque::with_capacity(3);
+            original.push_back(1);
+            original.push_back(2);
+            original.push_back(3);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: VecDeque<i32> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn linked_list_test() {
+        executor::block_on(async {
+            let mut original = LinkedList::new();
+            original.push_back(1);
+            original.push_back(2);
+            original.push_back(3);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: LinkedList<i32> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn hash_set_test() {
+        executor::block_on(async {
+            let mut original = HashSet::with_capacity(3);
+            original.insert(1);
+            original.insert(2);
+            original.insert(3);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: HashSet<i32> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn btree_set_test() {
+        executor::block_on(async {
+            let mut original = BTreeSet::new();
+            original.insert(3);
+            original.insert(1);
+            original.insert(2);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: BTreeSet<i32> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn binary_heap_test() {
+        executor::block_on(async {
+            let mut original: BinaryHeap<i32> = BinaryHeap::new();
+            original.push(3);
+            original.push(1);
+            original.push(2);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: BinaryHeap<i32> = decode(&encoded).await.unwrap();
+            let new_encoded = encode(&decoded).await;
+            assert_eq!(encoded, new_encoded, "Invalid encoding/decoding");
         });
     }
 }

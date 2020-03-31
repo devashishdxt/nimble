@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    collections::{BTreeSet, BinaryHeap, HashSet, LinkedList, VecDeque},
+    sync::Arc,
+};
 
 use crate::{
     async_trait,
@@ -138,24 +141,43 @@ where
     }
 }
 
-#[async_trait]
-impl<T> Encode for Vec<T>
-where
-    T: Encode + Sync,
-{
-    #[inline]
-    fn size(&self) -> usize {
-        <[T]>::size(self)
-    }
+macro_rules! impl_seq {
+    ($ty: tt < T $(: $tbound1: tt $(+ $tbound2: ident)*)* $(, $typaram: ident : $bound: ident)* >) => {
+        #[async_trait]
+        impl<T $(, $typaram)*> Encode for $ty<T $(, $typaram)*>
+        where
+            T: Encode + Sync $(+ $tbound1 $(+ $tbound2)*)*,
+            $($typaram: $bound,)*
+        {
+            #[inline]
+            fn size(&self) -> usize {
+                core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
+            }
 
-    #[allow(clippy::ptr_arg)]
-    async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
-    where
-        W: Write + Unpin + Send,
-    {
-        <[T]>::encode_to(self, config, writer).await
-    }
+            async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
+            where
+                W: Write + Unpin + Send,
+            {
+                let mut encoded = 0;
+
+                encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
+
+                for item in self.iter() {
+                    encoded += item.encode_to(config, &mut writer).await?;
+                }
+
+                Ok(encoded)
+            }
+        }
+    };
 }
+
+impl_seq!(Vec<T>);
+impl_seq!(VecDeque<T>);
+impl_seq!(LinkedList<T>);
+impl_seq!(HashSet<T>);
+impl_seq!(BTreeSet<T: 'static>);
+impl_seq!(BinaryHeap<T>);
 
 #[async_trait]
 impl<T> Encode for [T]
@@ -175,7 +197,7 @@ where
 
         encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
 
-        for item in _self.iter() {
+        for item in self.iter() {
             encoded += item.encode_to(config, &mut writer).await?;
         }
 
@@ -237,7 +259,6 @@ impl_deref!(<T: ?Sized> Encode for &T where T: Encode + Sync);
 impl_deref!(<T: ?Sized> Encode for &mut T where T: Encode + Sync);
 impl_deref!(<T: ?Sized> Encode for Box<T> where T: Encode + Sync);
 impl_deref!(<T: ?Sized> Encode for Arc<T> where T: Encode + Sync + Send);
-// impl_deref!(<T: ?Sized> Encode for Cow<'_, T> where T: Encode + ToOwned + Sync, <T as ToOwned>::Owned: Sync);
 
 macro_rules! impl_fixed_arr {
     ($($len: tt),+) => {
@@ -258,7 +279,7 @@ macro_rules! impl_fixed_arr {
                 {
                     let mut encoded = 0;
 
-                    for item in _self.iter() {
+                    for item in self.iter() {
                         encoded += item.encode_to(config, &mut writer).await?;
                     }
 

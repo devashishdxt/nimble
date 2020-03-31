@@ -1,5 +1,12 @@
-use core::convert::TryFrom;
-use std::{rc::Rc, sync::Arc};
+use core::{
+    convert::TryFrom,
+    hash::{BuildHasher, Hash},
+};
+use std::{
+    collections::{BTreeSet, BinaryHeap, HashSet, LinkedList, VecDeque},
+    rc::Rc,
+    sync::Arc,
+};
 
 use arrayvec::ArrayVec;
 
@@ -114,27 +121,54 @@ where
     }
 }
 
-#[async_trait]
-impl<T> Decode for Vec<T>
-where
-    T: Decode + Send,
-{
-    async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
-    where
-        R: Read + Unpin + Send,
-    {
-        let len = u64::decode_from(config, &mut reader).await?;
-        let len = usize::try_from(len).map_err(|_| Error::InvalidLength(len))?;
+macro_rules! impl_seq {
+    (
+        $ty: ident < T $(: $tbound1: ident $(+ $tbound2: ident)*)* $(, $typaram: ident : $bound1: ident $(+ $bound2: ident)*)* >,
+        $len: ident,
+        $create: expr,
+        $insert: expr
+    ) => {
+        #[async_trait]
+        impl<T $(, $typaram)*> Decode for $ty<T $(, $typaram)*>
+        where
+            T: Decode + Send $(+ $tbound1 $(+ $tbound2)*)*,
+            $($typaram: $bound1 $(+ $bound2)*,)*
+        {
+            async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
+            where
+                R: Read + Unpin + Send,
+            {
+                let $len = u64::decode_from(config, &mut reader).await?;
+                let $len = usize::try_from($len).map_err(|_| Error::InvalidLength($len))?;
 
-        let mut value = Vec::with_capacity(len);
+                let mut value = $create;
 
-        for _ in 0..len {
-            value.push(T::decode_from(config, &mut reader).await?);
+                for _ in 0..$len {
+                    $insert(&mut value, T::decode_from(config, &mut reader).await?);
+                }
+
+                Ok(value)
+            }
         }
-
-        Ok(value)
-    }
+    };
 }
+
+impl_seq!(Vec<T>, len, Vec::with_capacity(len), Vec::push);
+impl_seq!(
+    VecDeque<T>,
+    len,
+    VecDeque::with_capacity(len),
+    VecDeque::push_back
+);
+impl_seq!(LinkedList<T>, len, LinkedList::new(), LinkedList::push_back);
+impl_seq!(
+    HashSet<T: Eq + Hash, S: BuildHasher + Default + Send>,
+    len,
+    HashSet::with_capacity_and_hasher(len, S::default()),
+    HashSet::insert
+);
+impl_seq!(BTreeSet<T: Ord>, len, BTreeSet::new(), BTreeSet::insert);
+impl_seq!(BinaryHeap<T: Ord>, len, BinaryHeap::new(), BinaryHeap::push);
 
 #[async_trait]
 impl Decode for String {
