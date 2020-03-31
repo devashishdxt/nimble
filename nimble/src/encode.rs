@@ -1,6 +1,7 @@
 use core::hash::BuildHasher;
 use std::{
     collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
+    ffi::{CStr, CString},
     sync::Arc,
 };
 
@@ -54,7 +55,7 @@ macro_rules! impl_primitive {
     };
 }
 
-impl_primitive!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize);
+impl_primitive!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
 
 #[async_trait]
 impl Encode for bool {
@@ -207,36 +208,30 @@ where
     }
 }
 
-#[async_trait]
-impl Encode for String {
-    #[inline]
-    fn size(&self) -> usize {
-        <str>::size(self)
-    }
+macro_rules! impl_as_bytes {
+    ($ty: tt, $as_bytes: tt) => {
+        #[async_trait]
+        impl Encode for $ty {
+            #[inline]
+            fn size(&self) -> usize {
+                Self::$as_bytes(self).size()
+            }
 
-    #[allow(clippy::ptr_arg)]
-    async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
-    where
-        W: Write + Unpin + Send,
-    {
-        <str>::encode_to(self, config, writer).await
-    }
+            #[allow(clippy::ptr_arg)]
+            async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
+            where
+                W: Write + Unpin + Send,
+            {
+                Self::$as_bytes(self).encode_to(config, writer).await
+            }
+        }
+    };
 }
 
-#[async_trait]
-impl Encode for str {
-    #[inline]
-    fn size(&self) -> usize {
-        core::mem::size_of::<u64>() + self.len()
-    }
-
-    async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
-    where
-        W: Write + Unpin + Send,
-    {
-        self.as_bytes().encode_to(config, writer).await
-    }
-}
+impl_as_bytes!(str, as_bytes);
+impl_as_bytes!(String, as_bytes);
+impl_as_bytes!(CStr, to_bytes);
+impl_as_bytes!(CString, as_bytes);
 
 macro_rules! impl_deref {
     ($($desc: tt)+) => {
@@ -381,31 +376,3 @@ macro_rules! impl_map {
 
 impl_map!(HashMap<K, V, S: BuildHasher + Sync>);
 impl_map!(BTreeMap<K: 'static, V: 'static>);
-
-// #[async_trait]
-// impl<K, V, S> Encode for HashMap<K, V, S>
-// where
-//     K: Encode + Sync,
-//     V: Encode + Sync,
-//     S: BuildHasher + Sync,
-// {
-//     #[inline]
-//     fn size(&self) -> usize {
-//         core::mem::size_of::<u64>() + self.iter().map(|entry| entry.size()).sum::<usize>()
-//     }
-
-//     async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
-//     where
-//         W: Write + Unpin + Send,
-//     {
-//         let mut encoded = 0;
-
-//         encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
-
-//         for item in self.iter() {
-//             encoded += item.encode_to(config, &mut writer).await?;
-//         }
-
-//         Ok(encoded)
-//     }
-// }

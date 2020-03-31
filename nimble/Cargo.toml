@@ -17,9 +17,10 @@ edition = "2018"
 [dependencies]
 async-trait = "0.1"
 arrayvec = { version = "0.5", features = ["array-sizes-33-128"] }
-nimble-derive = { path = "../nimble-derive", optional = true }
-tokio = { version = "0.2", optional = true, features = ["io-util"] }
 futures-util = { version = "0.3", optional = true, features = ["io"] }
+nimble-derive = { path = "../nimble-derive", optional = true }
+thiserror = "1.0"
+tokio = { version = "0.2", optional = true, features = ["io-util"] }
 
 [dev-dependencies]
 rand = "0.7"

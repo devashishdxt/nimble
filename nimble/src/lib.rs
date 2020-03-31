@@ -134,8 +134,9 @@ pub async fn decode_from<D: Decode, R: Read + Unpin + Send>(reader: R) -> Result
 #[cfg(test)]
 #[cfg(not(feature = "tokio"))]
 mod tests {
-    use std::collections::{
-        BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque,
+    use std::{
+        collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
+        ffi::CString,
     };
 
     use futures_executor as executor;
@@ -175,6 +176,9 @@ mod tests {
     primitive_test!(bool, bool_test);
     primitive_test!(char, char_test);
 
+    primitive_test!(f32, f32_test);
+    primitive_test!(f64, f64_test);
+
     primitive_test!([u8; 32], u8_arr_test);
     primitive_test!([u16; 32], u16_arr_test);
     primitive_test!([u32; 32], u32_arr_test);
@@ -191,6 +195,9 @@ mod tests {
     primitive_test!([isize; 32], isize_arr_test);
     primitive_test!([bool; 32], bool_arr_test);
     primitive_test!([char; 32], char_arr_test);
+
+    primitive_test!([f32; 32], f32_arr_test);
+    primitive_test!([f64; 32], f64_arr_test);
 
     #[test]
     fn option_none_test() {
@@ -277,6 +284,17 @@ mod tests {
             assert_eq!(original.size(), encoded.len());
             let decoded: String = decode(&encoded).await.unwrap();
             assert_eq!(original.to_string(), decoded, "Invalid encoding/decoding");
+        })
+    }
+
+    #[test]
+    fn c_string_test() {
+        executor::block_on(async {
+            let original = CString::new("hello").unwrap();
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: CString = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
         })
     }
 

@@ -4,6 +4,7 @@ use core::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
+    ffi::CString,
     rc::Rc,
     sync::Arc,
 };
@@ -59,7 +60,7 @@ macro_rules! impl_primitive {
     };
 }
 
-impl_primitive!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize);
+impl_primitive!(u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
 
 #[async_trait]
 impl Decode for bool {
@@ -170,16 +171,23 @@ impl_seq!(
 impl_seq!(BTreeSet<T: Ord>, len, BTreeSet::new(), BTreeSet::insert);
 impl_seq!(BinaryHeap<T: Ord>, len, BinaryHeap::new(), BinaryHeap::push);
 
-#[async_trait]
-impl Decode for String {
-    async fn decode_from<R>(config: &Config, reader: R) -> Result<Self>
-    where
-        R: Read + Unpin + Send,
-    {
-        let bytes = <Vec<u8>>::decode_from(config, reader).await?;
-        String::from_utf8(bytes).map_err(Into::into)
-    }
+macro_rules! impl_from_bytes {
+    ($type: ty, $create: ident) => {
+        #[async_trait]
+        impl Decode for $type {
+            async fn decode_from<R>(config: &Config, reader: R) -> Result<Self>
+            where
+                R: Read + Unpin + Send,
+            {
+                let bytes = <Vec<u8>>::decode_from(config, reader).await?;
+                Self::$create(bytes).map_err(Into::into)
+            }
+        }
+    };
 }
+
+impl_from_bytes!(String, from_utf8);
+impl_from_bytes!(CString, new);
 
 macro_rules! impl_deref {
     ($type: ty, $func: expr) => {
