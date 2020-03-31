@@ -1,6 +1,6 @@
 use core::hash::BuildHasher;
 use std::{
-    collections::{BTreeSet, BinaryHeap, HashSet, LinkedList, VecDeque},
+    collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
     sync::Arc,
 };
 
@@ -346,3 +346,66 @@ impl_tuple! {
     (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8 9 T9 10 T10 11 T11 12 T12 13 T13 14 T14)
     (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8 9 T9 10 T10 11 T11 12 T12 13 T13 14 T14 15 T15)
 }
+
+macro_rules! impl_map {
+    ($ty: tt < K $(: $kbound1: tt $(+ $kbound2: tt)*)*, V $(: $vbound1: tt $(+ $vbound2: tt)*)* $(, $typaram: tt : $bound1: tt $(+ $bound2: tt)*)* >) => {
+        #[async_trait]
+        impl<K, V $(, $typaram)*> Encode for $ty<K, V $(, $typaram)*>
+        where
+            K: Encode + Sync $(+ $kbound1 $(+ $kbound2)*)*,
+            V: Encode + Sync $(+ $vbound1 $(+ $vbound2)*)*,
+            $($typaram: $bound1 $(+ $bound2)*,)*
+        {
+            #[inline]
+            fn size(&self) -> usize {
+                core::mem::size_of::<u64>() + self.iter().map(|entry| entry.size()).sum::<usize>()
+            }
+
+            async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
+            where
+                W: Write + Unpin + Send,
+            {
+                let mut encoded = 0;
+
+                encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
+
+                for item in self.iter() {
+                    encoded += item.encode_to(config, &mut writer).await?;
+                }
+
+                Ok(encoded)
+            }
+        }
+    };
+}
+
+impl_map!(HashMap<K, V, S: BuildHasher + Sync>);
+impl_map!(BTreeMap<K: 'static, V: 'static>);
+
+// #[async_trait]
+// impl<K, V, S> Encode for HashMap<K, V, S>
+// where
+//     K: Encode + Sync,
+//     V: Encode + Sync,
+//     S: BuildHasher + Sync,
+// {
+//     #[inline]
+//     fn size(&self) -> usize {
+//         core::mem::size_of::<u64>() + self.iter().map(|entry| entry.size()).sum::<usize>()
+//     }
+
+//     async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
+//     where
+//         W: Write + Unpin + Send,
+//     {
+//         let mut encoded = 0;
+
+//         encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
+
+//         for item in self.iter() {
+//             encoded += item.encode_to(config, &mut writer).await?;
+//         }
+
+//         Ok(encoded)
+//     }
+// }

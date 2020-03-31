@@ -134,7 +134,9 @@ pub async fn decode_from<D: Decode, R: Read + Unpin + Send>(reader: R) -> Result
 #[cfg(test)]
 #[cfg(not(feature = "tokio"))]
 mod tests {
-    use std::collections::{BTreeSet, BinaryHeap, HashSet, LinkedList, VecDeque};
+    use std::collections::{
+        BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque,
+    };
 
     use futures_executor as executor;
     use rand::random;
@@ -379,6 +381,34 @@ mod tests {
             let decoded: BinaryHeap<i32> = decode(&encoded).await.unwrap();
             let new_encoded = encode(&decoded).await;
             assert_eq!(encoded, new_encoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn hash_map_test() {
+        executor::block_on(async {
+            let mut original = HashMap::with_capacity(3);
+            original.insert(1, "Hello".to_owned());
+            original.insert(2, "World".to_owned());
+            original.insert(3, "!".to_owned());
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: HashMap<i32, String> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn btree_map_test() {
+        executor::block_on(async {
+            let mut original = BTreeMap::new();
+            original.insert(1, "Hello".to_owned());
+            original.insert(2, "World".to_owned());
+            original.insert(3, "!".to_owned());
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: BTreeMap<i32, String> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
         });
     }
 }
