@@ -1,6 +1,7 @@
 # Nimble 
 
 ![Continuous Integration](https://github.com/devashishdxt/nimble/workflows/Continuous%20Integration/badge.svg)
+![Crates.io](https://img.shields.io/crates/v/nimble)
 ![Documentation](https://docs.rs/nimble/badge.svg)
 
 Async friendly, simple and fast binary encoding/decoding in Rust.
