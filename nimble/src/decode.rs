@@ -234,19 +234,44 @@ impl_fixed_arr!(
     51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 128, 256, 512, 1024
 );
 
-#[async_trait]
-impl<A, B> Decode for (A, B)
-where
-    A: Decode + Send,
-    B: Decode + Send,
-{
-    async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
-    where
-        R: Read + Unpin + Send,
-    {
-        Ok((
-            A::decode_from(&config, &mut reader).await?,
-            B::decode_from(&config, &mut reader).await?,
-        ))
+macro_rules! impl_tuple {
+    ($(($($name:tt)+))+) => {
+        $(
+            #[async_trait]
+            impl<$($name),+> Decode for ($($name,)+)
+            where
+                $($name: Decode + Send,)+
+            {
+                async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
+                where
+                    R: Read + Unpin + Send,
+                {
+                    Ok((
+                        $(
+                            $name::decode_from(&config, &mut reader).await?,
+                        )+
+                    ))
+                }
+            }
+        )+
     }
+}
+
+impl_tuple! {
+    (T0)
+    (T0 T1)
+    (T0 T1 T2)
+    (T0 T1 T2 T3)
+    (T0 T1 T2 T3 T4)
+    (T0 T1 T2 T3 T4 T5)
+    (T0 T1 T2 T3 T4 T5 T6)
+    (T0 T1 T2 T3 T4 T5 T6 T7)
+    (T0 T1 T2 T3 T4 T5 T6 T7 T8)
+    (T0 T1 T2 T3 T4 T5 T6 T7 T8 T9)
+    (T0 T1 T2 T3 T4 T5 T6 T7 T8 T9 T10)
+    (T0 T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11)
+    (T0 T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12)
+    (T0 T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13)
+    (T0 T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14)
+    (T0 T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15)
 }

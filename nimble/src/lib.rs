@@ -303,10 +303,10 @@ mod tests {
     #[test]
     fn tuple_test() {
         executor::block_on(async {
-            let original = ("hello".to_string(), 25u8);
+            let original = ("hello".to_string(), 25u8, 100i32);
             let encoded = encode(&original).await;
             assert_eq!(original.size(), encoded.len());
-            let decoded: (String, u8) = decode(&encoded).await.unwrap();
+            let decoded: (String, u8, i32) = decode(&encoded).await.unwrap();
             assert_eq!(original, decoded, "Invalid encoding/decoding");
         });
     }

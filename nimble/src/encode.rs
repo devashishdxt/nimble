@@ -298,26 +298,51 @@ impl_fixed_arr!(
     51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 128, 256, 512, 1024
 );
 
-#[async_trait]
-impl<A, B> Encode for (A, B)
-where
-    A: Encode + Send + Sync,
-    B: Encode + Send + Sync,
-{
-    #[inline]
-    fn size(&self) -> usize {
-        self.0.size() + self.1.size()
+macro_rules! impl_tuple {
+    ($(($($n:tt $name:tt)+))+) => {
+        $(
+            #[async_trait]
+            impl<$($name),+> Encode for ($($name,)+)
+            where
+                $($name: Encode + Send + Sync,)+
+            {
+                #[inline]
+                fn size(&self) -> usize {
+                    0 $(+ self.$n.size())+
+                }
+
+                async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
+                where
+                    W: Write + Unpin + Send,
+                {
+                    let mut encoded = 0;
+
+                    $(
+                        encoded += self.$n.encode_to(config, &mut writer).await?;
+                    )+
+
+                    Ok(encoded)
+                }
+            }
+        )+
     }
+}
 
-    async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
-    where
-        W: Write + Unpin + Send,
-    {
-        let mut encoded = 0;
-
-        encoded += self.0.encode_to(config, &mut writer).await?;
-        encoded += self.1.encode_to(config, &mut writer).await?;
-
-        Ok(encoded)
-    }
+impl_tuple! {
+    (0 T0)
+    (0 T0 1 T1)
+    (0 T0 1 T1 2 T2)
+    (0 T0 1 T1 2 T2 3 T3)
+    (0 T0 1 T1 2 T2 3 T3 4 T4)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8 9 T9)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8 9 T9 10 T10)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8 9 T9 10 T10 11 T11)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8 9 T9 10 T10 11 T11 12 T12)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8 9 T9 10 T10 11 T11 12 T12 13 T13)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8 9 T9 10 T10 11 T11 12 T12 13 T13 14 T14)
+    (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8 9 T9 10 T10 11 T11 12 T12 13 T13 14 T14 15 T15)
 }
