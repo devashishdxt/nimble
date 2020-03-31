@@ -1,3 +1,4 @@
+use core::hash::BuildHasher;
 use std::{
     collections::{BTreeSet, BinaryHeap, HashSet, LinkedList, VecDeque},
     sync::Arc,
@@ -142,18 +143,19 @@ where
 }
 
 macro_rules! impl_seq {
-    ($ty: tt < T $(: $tbound1: tt $(+ $tbound2: ident)*)* $(, $typaram: ident : $bound: ident)* >) => {
+    ($ty: tt < T $(: $tbound1: tt $(+ $tbound2: ident)*)* $(, $typaram: tt : $bound1: tt $(+ $bound2: tt)*)* >) => {
         #[async_trait]
         impl<T $(, $typaram)*> Encode for $ty<T $(, $typaram)*>
         where
             T: Encode + Sync $(+ $tbound1 $(+ $tbound2)*)*,
-            $($typaram: $bound,)*
+            $($typaram: $bound1 $(+ $bound2)*,)*
         {
             #[inline]
             fn size(&self) -> usize {
                 core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
             }
 
+            #[allow(clippy::ptr_arg)]
             async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
             where
                 W: Write + Unpin + Send,
@@ -175,7 +177,7 @@ macro_rules! impl_seq {
 impl_seq!(Vec<T>);
 impl_seq!(VecDeque<T>);
 impl_seq!(LinkedList<T>);
-impl_seq!(HashSet<T>);
+impl_seq!(HashSet<T, S: BuildHasher + Sync>);
 impl_seq!(BTreeSet<T: 'static>);
 impl_seq!(BinaryHeap<T>);
 
