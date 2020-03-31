@@ -298,4 +298,15 @@ mod tests {
             assert_eq!(original, decoded, "Invalid encoding/decoding");
         });
     }
+
+    #[test]
+    fn tuple_test() {
+        executor::block_on(async {
+            let original = ("hello".to_string(), 25u8);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: (String, u8) = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
 }

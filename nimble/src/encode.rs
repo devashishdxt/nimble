@@ -274,3 +274,27 @@ impl_fixed_arr!(
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
     51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 128, 256, 512, 1024
 );
+
+#[async_trait]
+impl<A, B> Encode for (A, B)
+where
+    A: Encode + Send + Sync,
+    B: Encode + Send + Sync,
+{
+    #[inline]
+    fn size(&self) -> usize {
+        self.0.size() + self.1.size()
+    }
+
+    async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
+    where
+        W: Write + Unpin + Send,
+    {
+        let mut encoded = 0;
+
+        encoded += self.0.encode_to(config, &mut writer).await?;
+        encoded += self.1.encode_to(config, &mut writer).await?;
+
+        Ok(encoded)
+    }
+}
