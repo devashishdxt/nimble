@@ -1,6 +1,6 @@
 [package]
 name = "nimble"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
 license = "MIT/Apache-2.0"
 description = "Async friendly, simple and fast binary encoding/decoding"
@@ -17,9 +17,10 @@ edition = "2018"
 [dependencies]
 async-trait = "0.1"
 arrayvec = { version = "0.5", features = ["array-sizes-33-128"] }
-nimble-derive = { version = "0.2.0", optional = true }
-tokio = { version = "0.2", optional = true, features = ["io-util"] }
 futures-util = { version = "0.3", optional = true, features = ["io"] }
+nimble-derive = { version = "0.2.0", optional = true }
+thiserror = "1.0"
+tokio = { version = "0.2", optional = true, features = ["io-util"] }
 
 [dev-dependencies]
 rand = "0.7"

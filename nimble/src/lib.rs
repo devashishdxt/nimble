@@ -134,11 +134,16 @@ pub async fn decode_from<D: Decode, R: Read + Unpin + Send>(reader: R) -> Result
 #[cfg(test)]
 #[cfg(not(feature = "tokio"))]
 mod tests {
+    use core::num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize};
+    use std::{
+        collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
+        ffi::CString,
+    };
+
+    use futures_executor as executor;
     use rand::random;
 
     use crate::{decode, encode, Encode};
-
-    use futures_executor as executor;
 
     macro_rules! primitive_test {
         ($type: ty, $name: ident) => {
@@ -172,6 +177,16 @@ mod tests {
     primitive_test!(bool, bool_test);
     primitive_test!(char, char_test);
 
+    primitive_test!(f32, f32_test);
+    primitive_test!(f64, f64_test);
+
+    primitive_test!(NonZeroU8, non_zero_u8_test);
+    primitive_test!(NonZeroU16, non_zero_u16_test);
+    primitive_test!(NonZeroU32, non_zero_u32_test);
+    primitive_test!(NonZeroU64, non_zero_u64_test);
+    primitive_test!(NonZeroU128, non_zero_u128_test);
+    primitive_test!(NonZeroUsize, non_zero_usize_test);
+
     primitive_test!([u8; 32], u8_arr_test);
     primitive_test!([u16; 32], u16_arr_test);
     primitive_test!([u32; 32], u32_arr_test);
@@ -188,6 +203,9 @@ mod tests {
     primitive_test!([isize; 32], isize_arr_test);
     primitive_test!([bool; 32], bool_arr_test);
     primitive_test!([char; 32], char_arr_test);
+
+    primitive_test!([f32; 32], f32_arr_test);
+    primitive_test!([f64; 32], f64_arr_test);
 
     #[test]
     fn option_none_test() {
@@ -278,6 +296,17 @@ mod tests {
     }
 
     #[test]
+    fn c_string_test() {
+        executor::block_on(async {
+            let original = CString::new("hello").unwrap();
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: CString = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        })
+    }
+
+    #[test]
     fn vec_string_test() {
         executor::block_on(async {
             let original = vec!["hello".to_string(), "world".to_string()];
@@ -295,6 +324,116 @@ mod tests {
             let encoded = encode(&original).await;
             assert_eq!(original.size(), encoded.len());
             let decoded: Box<String> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn tuple_test() {
+        executor::block_on(async {
+            let original = ("hello".to_string(), 25u8, 100i32);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: (String, u8, i32) = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn vec_deque_test() {
+        executor::block_on(async {
+            let mut original = VecDeque::with_capacity(3);
+            original.push_back(1);
+            original.push_back(2);
+            original.push_back(3);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: VecDeque<i32> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn linked_list_test() {
+        executor::block_on(async {
+            let mut original = LinkedList::new();
+            original.push_back(1);
+            original.push_back(2);
+            original.push_back(3);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: LinkedList<i32> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn hash_set_test() {
+        executor::block_on(async {
+            let mut original = HashSet::with_capacity(3);
+            original.insert(1);
+            original.insert(2);
+            original.insert(3);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: HashSet<i32> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn btree_set_test() {
+        executor::block_on(async {
+            let mut original = BTreeSet::new();
+            original.insert(3);
+            original.insert(1);
+            original.insert(2);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: BTreeSet<i32> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn binary_heap_test() {
+        executor::block_on(async {
+            let mut original: BinaryHeap<i32> = BinaryHeap::new();
+            original.push(3);
+            original.push(1);
+            original.push(2);
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: BinaryHeap<i32> = decode(&encoded).await.unwrap();
+            let new_encoded = encode(&decoded).await;
+            assert_eq!(encoded, new_encoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn hash_map_test() {
+        executor::block_on(async {
+            let mut original = HashMap::with_capacity(3);
+            original.insert(1, "Hello".to_owned());
+            original.insert(2, "World".to_owned());
+            original.insert(3, "!".to_owned());
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: HashMap<i32, String> = decode(&encoded).await.unwrap();
+            assert_eq!(original, decoded, "Invalid encoding/decoding");
+        });
+    }
+
+    #[test]
+    fn btree_map_test() {
+        executor::block_on(async {
+            let mut original = BTreeMap::new();
+            original.insert(1, "Hello".to_owned());
+            original.insert(2, "World".to_owned());
+            original.insert(3, "!".to_owned());
+            let encoded = encode(&original).await;
+            assert_eq!(original.size(), encoded.len());
+            let decoded: BTreeMap<i32, String> = decode(&encoded).await.unwrap();
             assert_eq!(original, decoded, "Invalid encoding/decoding");
         });
     }
