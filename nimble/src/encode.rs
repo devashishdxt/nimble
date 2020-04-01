@@ -1,5 +1,6 @@
-use core::hash::BuildHasher;
+use core::{hash::BuildHasher, marker::PhantomData};
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
     ffi::{CStr, CString},
     sync::Arc,
@@ -257,6 +258,61 @@ impl_deref!(<T: ?Sized> Encode for &mut T where T: Encode + Sync);
 impl_deref!(<T: ?Sized> Encode for Box<T> where T: Encode + Sync);
 impl_deref!(<T: ?Sized> Encode for Arc<T> where T: Encode + Sync + Send);
 
+#[async_trait]
+impl<T: ?Sized> Encode for Cow<'_, T>
+where
+    T: Encode + ToOwned + Sync,
+    <T as ToOwned>::Owned: Sync,
+{
+    #[inline]
+    fn size(&self) -> usize {
+        self.as_ref().size()
+    }
+
+    #[allow(clippy::ptr_arg)]
+    async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
+    where
+        W: Write + Unpin + Send,
+    {
+        self.as_ref().encode_to(config, writer).await
+    }
+}
+
+macro_rules! impl_map {
+    ($ty: tt < K $(: $kbound1: tt $(+ $kbound2: tt)*)*, V $(: $vbound1: tt $(+ $vbound2: tt)*)* $(, $typaram: tt : $bound1: tt $(+ $bound2: tt)*)* >) => {
+        #[async_trait]
+        impl<K, V $(, $typaram)*> Encode for $ty<K, V $(, $typaram)*>
+        where
+            K: Encode + Sync $(+ $kbound1 $(+ $kbound2)*)*,
+            V: Encode + Sync $(+ $vbound1 $(+ $vbound2)*)*,
+            $($typaram: $bound1 $(+ $bound2)*,)*
+        {
+            #[inline]
+            fn size(&self) -> usize {
+                core::mem::size_of::<u64>() + self.iter().map(|entry| entry.size()).sum::<usize>()
+            }
+
+            async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
+            where
+                W: Write + Unpin + Send,
+            {
+                let mut encoded = 0;
+
+                encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
+
+                for item in self.iter() {
+                    encoded += item.encode_to(config, &mut writer).await?;
+                }
+
+                Ok(encoded)
+            }
+        }
+    };
+}
+
+impl_map!(HashMap<K, V, S: BuildHasher + Sync>);
+impl_map!(BTreeMap<K: 'static, V: 'static>);
+
 macro_rules! impl_fixed_arr {
     ($($len: tt),+) => {
         $(
@@ -292,6 +348,22 @@ impl_fixed_arr!(
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
     51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 128, 256, 512, 1024
 );
+
+#[async_trait]
+impl Encode for () {
+    #[inline]
+    fn size(&self) -> usize {
+        0
+    }
+
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    async fn encode_to<W>(&self, _config: &Config, _writer: W) -> Result<usize>
+    where
+        W: Write + Unpin + Send,
+    {
+        Ok(0)
+    }
+}
 
 macro_rules! impl_tuple {
     ($(($($n:tt $name:tt)+))+) => {
@@ -342,37 +414,21 @@ impl_tuple! {
     (0 T0 1 T1 2 T2 3 T3 4 T4 5 T5 6 T6 7 T7 8 T8 9 T9 10 T10 11 T11 12 T12 13 T13 14 T14 15 T15)
 }
 
-macro_rules! impl_map {
-    ($ty: tt < K $(: $kbound1: tt $(+ $kbound2: tt)*)*, V $(: $vbound1: tt $(+ $vbound2: tt)*)* $(, $typaram: tt : $bound1: tt $(+ $bound2: tt)*)* >) => {
-        #[async_trait]
-        impl<K, V $(, $typaram)*> Encode for $ty<K, V $(, $typaram)*>
-        where
-            K: Encode + Sync $(+ $kbound1 $(+ $kbound2)*)*,
-            V: Encode + Sync $(+ $vbound1 $(+ $vbound2)*)*,
-            $($typaram: $bound1 $(+ $bound2)*,)*
-        {
-            #[inline]
-            fn size(&self) -> usize {
-                core::mem::size_of::<u64>() + self.iter().map(|entry| entry.size()).sum::<usize>()
-            }
+#[async_trait]
+impl<T> Encode for PhantomData<T>
+where
+    T: Send + Sync + ?Sized,
+{
+    #[inline]
+    fn size(&self) -> usize {
+        0
+    }
 
-            async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
-            where
-                W: Write + Unpin + Send,
-            {
-                let mut encoded = 0;
-
-                encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
-
-                for item in self.iter() {
-                    encoded += item.encode_to(config, &mut writer).await?;
-                }
-
-                Ok(encoded)
-            }
-        }
-    };
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    async fn encode_to<W>(&self, _config: &Config, _writer: W) -> Result<usize>
+    where
+        W: Write + Unpin + Send,
+    {
+        Ok(0)
+    }
 }
-
-impl_map!(HashMap<K, V, S: BuildHasher + Sync>);
-impl_map!(BTreeMap<K: 'static, V: 'static>);

@@ -1,8 +1,10 @@
 use core::{
     convert::TryFrom,
     hash::{BuildHasher, Hash},
+    marker::PhantomData,
 };
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
     ffi::CString,
     rc::Rc,
@@ -210,6 +212,61 @@ impl_deref!(Box<T>, Box::new);
 impl_deref!(Rc<T>, Rc::new);
 impl_deref!(Arc<T>, Arc::new);
 
+#[async_trait]
+impl<'a, T: ?Sized> Decode for Cow<'a, T>
+where
+    T: 'a + ToOwned,
+    <T as ToOwned>::Owned: Decode,
+{
+    async fn decode_from<R>(config: &Config, reader: R) -> Result<Self>
+    where
+        R: Read + Unpin + Send,
+    {
+        let owned = <<T as ToOwned>::Owned>::decode_from(config, reader).await?;
+        Ok(Cow::Owned(owned))
+    }
+}
+
+macro_rules! impl_map {
+    (
+        $ty: ident < K $(: $kbound1: ident $(+ $kbound2: ident)*)*, V $(, $typaram: ident : $bound1: ident $(+ $bound2: ident)*)* >,
+        $len: ident,
+        $create: expr
+    ) => {
+        #[async_trait]
+        impl<K, V $(, $typaram)*> Decode for $ty<K, V $(, $typaram)*>
+        where
+            K: Decode + Send $(+ $kbound1 $(+ $kbound2)*)*,
+            V: Decode + Send,
+            $($typaram: $bound1 $(+ $bound2)*,)*
+        {
+            async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
+            where
+                R: Read + Unpin + Send,
+            {
+                let $len = u64::decode_from(config, &mut reader).await?;
+                let $len = usize::try_from($len).map_err(|_| Error::InvalidLength($len))?;
+
+                let mut map = $create;
+
+                for _ in 0..$len {
+                    let entry = <(K, V)>::decode_from(config, &mut reader).await?;
+                    map.insert(entry.0, entry.1);
+                }
+
+                Ok(map)
+            }
+        }
+    };
+}
+
+impl_map!(
+    HashMap<K: Eq + Hash, V, S: BuildHasher + Default + Send>,
+    len,
+    HashMap::with_capacity_and_hasher(len, S::default())
+);
+impl_map!(BTreeMap<K: Ord, V>, len, BTreeMap::new());
+
 macro_rules! impl_fixed_arr {
     ($($len: expr),+) => {
         $(
@@ -241,6 +298,16 @@ impl_fixed_arr!(
     27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
     51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 128, 256, 512, 1024
 );
+
+#[async_trait]
+impl Decode for () {
+    async fn decode_from<R>(_config: &Config, _reader: R) -> Result<Self>
+    where
+        R: Read + Unpin + Send,
+    {
+        Ok(())
+    }
+}
 
 macro_rules! impl_tuple {
     ($(($($name:tt)+))+) => {
@@ -284,42 +351,15 @@ impl_tuple! {
     (T0 T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15)
 }
 
-macro_rules! impl_map {
-    (
-        $ty: ident < K $(: $kbound1: ident $(+ $kbound2: ident)*)*, V $(, $typaram: ident : $bound1: ident $(+ $bound2: ident)*)* >,
-        $len: ident,
-        $create: expr
-    ) => {
-        #[async_trait]
-        impl<K, V $(, $typaram)*> Decode for $ty<K, V $(, $typaram)*>
-        where
-            K: Decode + Send $(+ $kbound1 $(+ $kbound2)*)*,
-            V: Decode + Send,
-            $($typaram: $bound1 $(+ $bound2)*,)*
-        {
-            async fn decode_from<R>(config: &Config, mut reader: R) -> Result<Self>
-            where
-                R: Read + Unpin + Send,
-            {
-                let $len = u64::decode_from(config, &mut reader).await?;
-                let $len = usize::try_from($len).map_err(|_| Error::InvalidLength($len))?;
-
-                let mut map = $create;
-
-                for _ in 0..$len {
-                    let entry = <(K, V)>::decode_from(config, &mut reader).await?;
-                    map.insert(entry.0, entry.1);
-                }
-
-                Ok(map)
-            }
-        }
-    };
+#[async_trait]
+impl<T> Decode for PhantomData<T>
+where
+    T: ?Sized,
+{
+    async fn decode_from<R>(_config: &Config, _reader: R) -> Result<Self>
+    where
+        R: Read + Unpin + Send,
+    {
+        Ok(Default::default())
+    }
 }
-
-impl_map!(
-    HashMap<K: Eq + Hash, V, S: BuildHasher + Default + Send>,
-    len,
-    HashMap::with_capacity_and_hasher(len, S::default())
-);
-impl_map!(BTreeMap<K: Ord, V>, len, BTreeMap::new());
