@@ -134,6 +134,7 @@ pub async fn decode_from<D: Decode, R: Read + Unpin + Send>(reader: R) -> Result
 #[cfg(test)]
 #[cfg(not(feature = "tokio"))]
 mod tests {
+    use core::num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize};
     use std::{
         collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
         ffi::CString,
@@ -178,6 +179,13 @@ mod tests {
 
     primitive_test!(f32, f32_test);
     primitive_test!(f64, f64_test);
+
+    primitive_test!(NonZeroU8, non_zero_u8_test);
+    primitive_test!(NonZeroU16, non_zero_u16_test);
+    primitive_test!(NonZeroU32, non_zero_u32_test);
+    primitive_test!(NonZeroU64, non_zero_u64_test);
+    primitive_test!(NonZeroU128, non_zero_u128_test);
+    primitive_test!(NonZeroUsize, non_zero_usize_test);
 
     primitive_test!([u8; 32], u8_arr_test);
     primitive_test!([u16; 32], u16_arr_test);

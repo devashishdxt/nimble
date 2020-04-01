@@ -1,4 +1,11 @@
-use core::{hash::BuildHasher, marker::PhantomData};
+use core::{
+    hash::BuildHasher,
+    marker::PhantomData,
+    num::{
+        NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize, NonZeroU128,
+        NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize,
+    },
+};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
@@ -432,3 +439,39 @@ where
         Ok(0)
     }
 }
+
+macro_rules! impl_non_zero_primitives {
+    ($($type: tt),+) => {
+        $(
+            #[async_trait]
+            impl Encode for $type {
+                #[inline]
+                fn size(&self) -> usize {
+                    core::mem::size_of::<Self>()
+                }
+
+                async fn encode_to<W>(&self, config: &Config, writer: W) -> Result<usize>
+                where
+                    W: Write + Unpin + Send,
+                {
+                    self.get().encode_to(config, writer).await
+                }
+            }
+        )+
+    };
+}
+
+impl_non_zero_primitives!(
+    NonZeroU8,
+    NonZeroU16,
+    NonZeroU32,
+    NonZeroU64,
+    NonZeroU128,
+    NonZeroI8,
+    NonZeroI16,
+    NonZeroI32,
+    NonZeroI64,
+    NonZeroI128,
+    NonZeroUsize,
+    NonZeroIsize
+);

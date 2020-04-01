@@ -2,6 +2,10 @@ use core::{
     convert::TryFrom,
     hash::{BuildHasher, Hash},
     marker::PhantomData,
+    num::{
+        NonZeroI128, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize, NonZeroU128,
+        NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize,
+    },
 };
 use std::{
     borrow::Cow,
@@ -363,3 +367,35 @@ where
         Ok(Default::default())
     }
 }
+
+macro_rules! impl_non_zero_primitives {
+    ($($type: ident),+) => {
+        $(
+            #[async_trait]
+            impl Decode for $type {
+                async fn decode_from<R>(config: &Config, reader: R) -> Result<Self>
+                where
+                    R: Read + Unpin + Send,
+                {
+                    Ok(Self::new(Decode::decode_from(config, reader).await?)
+                        .ok_or_else(|| Error::NonZeroError)?)
+                }
+            }
+        )+
+    };
+}
+
+impl_non_zero_primitives!(
+    NonZeroU8,
+    NonZeroU16,
+    NonZeroU32,
+    NonZeroU64,
+    NonZeroU128,
+    NonZeroI8,
+    NonZeroI16,
+    NonZeroI32,
+    NonZeroI64,
+    NonZeroI128,
+    NonZeroUsize,
+    NonZeroIsize
+);

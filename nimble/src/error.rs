@@ -21,6 +21,9 @@ pub enum Error {
     /// Partially filled array
     #[error("Partially filled array")]
     PartiallyFilledArray,
+    /// A non-zero value is zero
+    #[error("A non-zero value is zero")]
+    NonZeroError,
     /// CString contains trailing 0 byte
     #[error("CString contains trailing 0 byte: {0}")]
     NulError(#[from] std::ffi::NulError),
