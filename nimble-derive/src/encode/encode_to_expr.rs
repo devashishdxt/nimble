@@ -31,11 +31,11 @@ impl<'a> EncodeToExpr for Context<'a> {
                         let fields = &variant.fields;
                         let pattern_matching =
                             get_variant_pattern_match_expr(fields.iter_fields(), fields_type, true);
-                        let variant_index = i as u32;
+                        let variant_index = i as u128;
                         let bytes_encoding = bytes_encoding_expr(
                             fields.iter_fields(),
                             &field_prefix,
-                            Some(quote! {Encode::encode_to(& #variant_index, config, &mut writer).await?}),
+                            Some(quote! {Encode::encode_to(& nimble::VarInt::from( #variant_index ), config, &mut writer).await?}),
                         );
 
                         quote_spanned! {span=>
@@ -53,6 +53,32 @@ impl<'a> EncodeToExpr for Context<'a> {
     }
 }
 
+/// Returns expression to encode all the fields
+///
+/// # Arguments
+///
+/// - `fields`: An iterator over all the fields
+/// - `field_prefix`: Prefix to apply before accessing each field (for example, `&self.` is a field prefix for accessing struct fields)
+/// - `base_expr`: Base encoding expression, if any (this expression is added to encoding expression)
+///
+/// # Example
+///
+/// For below struct:
+///
+/// ```rust,ignore
+/// struct MyStruct {
+///     a: u8,
+///     b: u16,
+/// }
+/// ```
+///
+/// This function will return:
+///
+/// ```ignore
+/// Ok(0 + Encode::encode_to(&self.a, config, &mut writer).await? + Encode::encode_to(&self.b, config, &mut writer).await?)
+/// ```
+///
+/// assuming `field_prefix = &self.` and `base_expr = None`.
 fn bytes_encoding_expr(
     fields: Iter<Field>,
     field_prefix: &TokenStream,

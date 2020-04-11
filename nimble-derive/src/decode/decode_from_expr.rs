@@ -1,3 +1,5 @@
+use core::convert::TryFrom;
+
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
 use syn::{punctuated::Iter, spanned::Spanned, Field};
@@ -31,7 +33,7 @@ impl<'a> DecodeFromExpr for Context<'a> {
 
                         let decode_bytes_expr =
                             decode_bytes_expr(&quote!(#name :: #variant_name), fields_type, fields);
-                        let index = i as u32;
+                        let index = u128::try_from(i).expect("Failed to convert usize to u128. Log an issue on nimble's GitHub repository with backtrace.");
 
                         quote_spanned! {variant.span()=>
                             #index => #decode_bytes_expr
@@ -39,11 +41,11 @@ impl<'a> DecodeFromExpr for Context<'a> {
                     });
 
                 quote! {
-                    let option = <u32>::decode_from(config, &mut reader).await?;
+                    let option = u128::from(<nimble::VarInt>::decode_from(config, &mut reader).await?);
 
                     match option {
                         #(#match_exprs,)*
-                        _ => Err(nimble::Error::InvalidEnumVariant(option)),
+                        _ => Err(nimble::Error::InvalidEnumVariant(option.into())),
                     }
                 }
             }
@@ -51,6 +53,33 @@ impl<'a> DecodeFromExpr for Context<'a> {
     }
 }
 
+/// Returns expression to decode bytes into fields
+///
+/// # Arguments
+///
+/// - `name`: Name of struct/enum
+/// - `fields_type`: Type of fields (`Named`, `Unnamed` or `Unit`)
+/// - `fields`: Iterator over all the fields of struct or enum variant
+///
+/// # Example
+///
+/// For below struct:
+///
+/// ```rust,ignore
+/// struct MyStruct {
+///     a: u8,
+///     b: u16,
+/// }
+/// ```
+///
+/// This function will return:
+///
+/// ```ignore
+/// Ok(MyStruct {
+///     a: <u8>::decode_from(config, &mut reader).await?,
+///     b: <u16>::decode_from(config, &mut reader).await?,
+/// })
+/// ```
 fn decode_bytes_expr<T: ToTokens>(
     name: &T,
     fields_type: FieldsType,

@@ -103,7 +103,7 @@ where
         match option {
             0 => Ok(None),
             1 => T::decode_from(config, &mut reader).await.map(Some),
-            _ => Err(Error::InvalidEnumVariant(option as u32)),
+            _ => Err(Error::InvalidEnumVariant(option.into())),
         }
     }
 }
@@ -123,7 +123,7 @@ where
         match option {
             0 => T::decode_from(config, &mut reader).await.map(Ok),
             1 => E::decode_from(config, &mut reader).await.map(Err),
-            _ => Err(Error::InvalidEnumVariant(option as u32)),
+            _ => Err(Error::InvalidEnumVariant(option.into())),
         }
     }
 }

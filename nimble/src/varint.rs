@@ -1,5 +1,5 @@
 //! Utilities for encoding/decoding VarInt
-use core::{convert::TryFrom, mem::size_of};
+use core::{convert::TryFrom, fmt, mem::size_of};
 
 use async_trait::async_trait;
 
@@ -11,6 +11,12 @@ use crate::{
 /// Base 128 VarInt ([Reference](https://developers.google.com/protocol-buffers/docs/encoding#varints))
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct VarInt(u128);
+
+impl fmt::Display for VarInt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 #[async_trait]
 impl Encode for VarInt {
@@ -147,21 +153,15 @@ macro_rules! impl_from_varint_to_zigzagged {
     };
 }
 
-// This implementation does not make sense. This is here just for consistency.
-impl TryFrom<VarInt> for u128 {
-    type Error = Error;
-
-    fn try_from(value: VarInt) -> Result<Self> {
-        Ok(value.0)
+impl From<VarInt> for u128 {
+    fn from(value: VarInt) -> Self {
+        value.0
     }
 }
 
-// This implementation does not make sense. This is here just for consistency.
-impl TryFrom<VarInt> for i128 {
-    type Error = Error;
-
-    fn try_from(value: VarInt) -> Result<Self> {
-        Ok(i128::decode_zigzag(value.0))
+impl From<VarInt> for i128 {
+    fn from(value: VarInt) -> Self {
+        i128::decode_zigzag(value.0)
     }
 }
 

@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::VarInt;
+
 #[derive(Debug, Error)]
 /// Error returned by this crate
 pub enum Error {
@@ -8,7 +10,7 @@ pub enum Error {
     InvalidChar(u32),
     /// Invalid enum variant
     #[error("Invalid enum variant: {0}")]
-    InvalidEnumVariant(u32),
+    InvalidEnumVariant(VarInt),
     /// Invalid UTF-8 string
     #[error("Invalid UTF-8 string: {0}")]
     InvalidUtf8String(#[from] std::string::FromUtf8Error),
