@@ -8,7 +8,7 @@
 //!
 //! This crate uses a minimal binary encoding scheme. For example, consider the following `struct`:
 //!
-//! ```
+//! ```rust
 //! struct MyStruct {
 //!     a: u8,
 //!     b: u16,
