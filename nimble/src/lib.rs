@@ -79,6 +79,7 @@ mod config;
 mod decode;
 mod encode;
 mod error;
+mod varint;
 
 pub mod io;
 
@@ -93,6 +94,7 @@ pub use self::{
     decode::Decode,
     encode::Encode,
     error::{Error, Result},
+    varint::VarInt,
 };
 
 use self::io::{Read, Write};
@@ -134,7 +136,10 @@ pub async fn decode_from<D: Decode, R: Read + Unpin + Send>(reader: R) -> Result
 #[cfg(test)]
 #[cfg(not(feature = "tokio"))]
 mod tests {
-    use core::num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize};
+    use core::{
+        convert::{TryFrom, TryInto},
+        num::{NonZeroU128, NonZeroU16, NonZeroU32, NonZeroU64, NonZeroU8, NonZeroUsize},
+    };
     use std::{
         collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque},
         ffi::CString,
@@ -143,7 +148,7 @@ mod tests {
     use futures_executor as executor;
     use rand::random;
 
-    use crate::{decode, encode, Encode};
+    use crate::{decode, encode, Encode, VarInt};
 
     macro_rules! primitive_test {
         ($type: ty, $name: ident) => {
@@ -437,4 +442,65 @@ mod tests {
             assert_eq!(original, decoded, "Invalid encoding/decoding");
         });
     }
+
+    #[test]
+    fn varint_test() {
+        executor::block_on(async {
+            let num: u16 = 300;
+            let original: VarInt = num.into();
+            let encoded = encode(&original).await;
+            println!("{:?}", encoded);
+        });
+    }
+
+    macro_rules! varint_test {
+        ($type: ty, $name: ident) => {
+            #[test]
+            fn $name() {
+                executor::block_on(async {
+                    let num = random::<$type>();
+                    let original: VarInt = num.into();
+                    let encoded = encode(&original).await;
+                    assert_eq!(original.size(), encoded.len());
+                    let decoded: VarInt = decode(&encoded).await.unwrap();
+                    assert_eq!(original, decoded, "Invalid encoding/decoding");
+                    let decoded_num = <$type>::try_from(decoded).unwrap();
+                    assert_eq!(num, decoded_num, "Invalid encoding/decoding");
+                });
+            }
+        };
+    }
+
+    varint_test!(u8, varint_u8_test);
+    varint_test!(u16, varint_u16_test);
+    varint_test!(u32, varint_u32_test);
+    varint_test!(u64, varint_u64_test);
+    varint_test!(u128, varint_u128_test);
+
+    varint_test!(i8, varint_i8_test);
+    varint_test!(i16, varint_i16_test);
+    varint_test!(i32, varint_i32_test);
+    varint_test!(i64, varint_i64_test);
+    varint_test!(i128, varint_i128_test);
+
+    macro_rules! varint_try_into_test {
+        ($type: ty, $name: ident) => {
+            #[test]
+            fn $name() {
+                executor::block_on(async {
+                    let num = random::<$type>();
+                    let original: VarInt = num.try_into().unwrap();
+                    let encoded = encode(&original).await;
+                    assert_eq!(original.size(), encoded.len());
+                    let decoded: VarInt = decode(&encoded).await.unwrap();
+                    assert_eq!(original, decoded, "Invalid encoding/decoding");
+                    let decoded_num = <$type>::try_from(decoded).unwrap();
+                    assert_eq!(num, decoded_num, "Invalid encoding/decoding");
+                });
+            }
+        };
+    }
+
+    varint_try_into_test!(usize, varint_usize_test);
+    varint_try_into_test!(isize, varint_isize_test);
 }
