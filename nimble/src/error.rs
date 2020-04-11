@@ -9,9 +9,6 @@ pub enum Error {
     /// Invalid enum variant
     #[error("Invalid enum variant: {0}")]
     InvalidEnumVariant(u32),
-    /// Invalid length
-    #[error("Invalid length: {0}")]
-    InvalidLength(u64),
     /// Invalid UTF-8 string
     #[error("Invalid UTF-8 string: {0}")]
     InvalidUtf8String(#[from] std::string::FromUtf8Error),

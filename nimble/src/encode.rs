@@ -1,4 +1,5 @@
 use core::{
+    convert::TryFrom,
     hash::BuildHasher,
     marker::PhantomData,
     num::{
@@ -16,7 +17,7 @@ use std::{
 use crate::{
     async_trait,
     io::{Write, WriteExt},
-    Config, Endianness, Result,
+    Config, Endianness, Result, VarInt,
 };
 
 #[async_trait]
@@ -161,7 +162,7 @@ macro_rules! impl_seq {
         {
             #[inline]
             fn size(&self) -> usize {
-                core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
+                VarInt::try_from(self.len()).expect("Failed to convert usize to u128. Log an issue on nimble's GitHub repository with backtrace.").size() + self.iter().map(Encode::size).sum::<usize>()
             }
 
             #[allow(clippy::ptr_arg)]
@@ -171,7 +172,8 @@ macro_rules! impl_seq {
             {
                 let mut encoded = 0;
 
-                encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
+                let len = VarInt::try_from(self.len()).expect("Failed to convert usize to u128. Log an issue on nimble's GitHub repository with backtrace.");
+                encoded += len.encode_to(config, &mut writer).await?;
 
                 for item in self.iter() {
                     encoded += item.encode_to(config, &mut writer).await?;
@@ -197,7 +199,7 @@ where
 {
     #[inline]
     fn size(&self) -> usize {
-        core::mem::size_of::<u64>() + self.iter().map(Encode::size).sum::<usize>()
+        VarInt::try_from(self.len()).expect("Failed to convert usize to u128. Log an issue on nimble's GitHub repository with backtrace.").size() + self.iter().map(Encode::size).sum::<usize>()
     }
 
     async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
@@ -206,7 +208,8 @@ where
     {
         let mut encoded = 0;
 
-        encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
+        let len = VarInt::try_from(self.len()).expect("Failed to convert usize to u128. Log an issue on nimble's GitHub repository with backtrace.");
+        encoded += len.encode_to(config, &mut writer).await?;
 
         for item in self.iter() {
             encoded += item.encode_to(config, &mut writer).await?;
@@ -296,7 +299,7 @@ macro_rules! impl_map {
         {
             #[inline]
             fn size(&self) -> usize {
-                core::mem::size_of::<u64>() + self.iter().map(|entry| entry.size()).sum::<usize>()
+                VarInt::try_from(self.len()).expect("Failed to convert usize to u128. Log an issue on nimble's GitHub repository with backtrace.").size() + self.iter().map(|entry| entry.size()).sum::<usize>()
             }
 
             async fn encode_to<W>(&self, config: &Config, mut writer: W) -> Result<usize>
@@ -305,7 +308,8 @@ macro_rules! impl_map {
             {
                 let mut encoded = 0;
 
-                encoded += (self.len() as u64).encode_to(config, &mut writer).await?;
+                let len = VarInt::try_from(self.len()).expect("Failed to convert usize to u128. Log an issue on nimble's GitHub repository with backtrace.");
+                encoded += len.encode_to(config, &mut writer).await?;
 
                 for item in self.iter() {
                     encoded += item.encode_to(config, &mut writer).await?;

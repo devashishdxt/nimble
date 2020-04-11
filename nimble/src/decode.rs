@@ -20,7 +20,7 @@ use arrayvec::ArrayVec;
 use crate::{
     async_trait,
     io::{Read, ReadExt},
-    Config, Endianness, Error, Result,
+    Config, Endianness, Error, Result, VarInt,
 };
 
 #[async_trait]
@@ -145,8 +145,7 @@ macro_rules! impl_seq {
             where
                 R: Read + Unpin + Send,
             {
-                let $len = u64::decode_from(config, &mut reader).await?;
-                let $len = usize::try_from($len).map_err(|_| Error::InvalidLength($len))?;
+                let $len = usize::try_from(VarInt::decode_from(config, &mut reader).await?)?;
 
                 let mut value = $create;
 
@@ -248,8 +247,7 @@ macro_rules! impl_map {
             where
                 R: Read + Unpin + Send,
             {
-                let $len = u64::decode_from(config, &mut reader).await?;
-                let $len = usize::try_from($len).map_err(|_| Error::InvalidLength($len))?;
+                let $len = usize::try_from(VarInt::decode_from(config, &mut reader).await?)?;
 
                 let mut map = $create;
 

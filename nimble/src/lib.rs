@@ -18,7 +18,7 @@
 //! `encode()` will serialize this into `Vec` of size `3` (which is the sum of sizes of `u8` and `u16`).
 //!
 //! Similarly, for types which can have dynamic size (`Vec`, `String`, etc.), `encode()` prepends the size of encoded value
-//! as `u64`.
+//! as `VarInt`.
 //!
 //! ## Usage
 //!
