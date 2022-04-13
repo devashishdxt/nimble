@@ -18,7 +18,7 @@ impl<'a> EncodeToExpr for Context<'a> {
 
         match &self.expr_type {
             ExprType::Struct { ref fields, .. } => {
-                bytes_encoding_expr(fields.clone(), &field_prefix, None)
+                bytes_encoding_expr(fields.clone(), field_prefix, None)
             }
             ExprType::Enum { ref variants } => {
                 let match_exprs = variants
@@ -34,7 +34,7 @@ impl<'a> EncodeToExpr for Context<'a> {
                         let variant_index = i as u128;
                         let bytes_encoding = bytes_encoding_expr(
                             fields.iter_fields(),
-                            &field_prefix,
+                            field_prefix,
                             Some(quote! {Encode::encode_to(& nimble::VarInt::from( #variant_index ), config, &mut writer).await?}),
                         );
 
@@ -80,7 +80,7 @@ impl<'a> EncodeToExpr for Context<'a> {
 ///
 /// assuming `field_prefix = &self.` and `base_expr = None`.
 fn bytes_encoding_expr(
-    fields: Iter<Field>,
+    fields: Iter<'_, Field>,
     field_prefix: &TokenStream,
     base_expr: Option<TokenStream>,
 ) -> TokenStream {

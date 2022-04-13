@@ -4,15 +4,15 @@ use nimble::{decode, encode, Decode, Encode};
 
 #[derive(Debug, PartialEq, Encode, Decode)]
 enum MyEnum {
-    UnitVariant,
-    UnnamedVariant(u8, u16),
-    NamedVariant { a: u8, b: u16 },
+    Unit,
+    Unnamed(u8, u16),
+    Named { a: u8, b: u16 },
 }
 
 #[test]
 fn enum_unit_variant_test() {
     executor::block_on(async {
-        let original = MyEnum::UnitVariant;
+        let original = MyEnum::Unit;
 
         assert_eq!(1, original.size());
         let encoded = encode(&original).await;
@@ -26,7 +26,7 @@ fn enum_unit_variant_test() {
 #[test]
 fn enum_unnamed_variant_test() {
     executor::block_on(async {
-        let original = MyEnum::UnnamedVariant(10, 20);
+        let original = MyEnum::Unnamed(10, 20);
 
         assert_eq!(4, original.size());
         let encoded = encode(&original).await;
@@ -40,7 +40,7 @@ fn enum_unnamed_variant_test() {
 #[test]
 fn enum_named_variant_test() {
     executor::block_on(async {
-        let original = MyEnum::NamedVariant { a: 10, b: 20 };
+        let original = MyEnum::Named { a: 10, b: 20 };
 
         assert_eq!(4, original.size());
         let encoded = encode(&original).await;

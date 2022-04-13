@@ -4,3 +4,4 @@ members = [
     "nimble-derive",
     "nimble-test",
 ]
+resolver = "2"

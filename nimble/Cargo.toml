@@ -10,7 +10,7 @@ categories = ["encoding", "network-programming"]
 keywords = ["encode", "decode", "serialize", "deserialize", "binary"]
 readme = "README.md"
 include = ["Cargo.toml", "src/**/*.rs", "README.md"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

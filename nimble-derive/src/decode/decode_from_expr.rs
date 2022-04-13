@@ -83,7 +83,7 @@ impl<'a> DecodeFromExpr for Context<'a> {
 fn decode_bytes_expr<T: ToTokens>(
     name: &T,
     fields_type: FieldsType,
-    fields: Iter<Field>,
+    fields: Iter<'_, Field>,
 ) -> TokenStream {
     let field_exprs = fields.map(|f| -> TokenStream {
         let field_type = &f.get_type();

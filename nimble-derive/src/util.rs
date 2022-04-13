@@ -41,7 +41,7 @@ pub trait FieldsExt {
     fn get_type(&self) -> FieldsType;
 
     /// Get an iterator over all the fields.
-    fn iter_fields(&self) -> Iter<Field>;
+    fn iter_fields(&self) -> Iter<'_, Field>;
 }
 
 impl FieldsExt for Fields {
@@ -54,7 +54,7 @@ impl FieldsExt for Fields {
     }
 
     #[inline]
-    fn iter_fields(&self) -> Iter<Field> {
+    fn iter_fields(&self) -> Iter<'_, Field> {
         self.iter()
     }
 }
@@ -73,7 +73,7 @@ impl VariantExt for Variant {
 
 pub trait DataEnumExt {
     /// Returns all the variants in an enum
-    fn iter_variants(&self) -> Iter<Variant>;
+    fn iter_variants(&self) -> Iter<'_, Variant>;
 
     /// Names all the unnamed fields (default naming is `field_0, field_1, ...`)
     fn name_unnamed(&mut self);
@@ -81,7 +81,7 @@ pub trait DataEnumExt {
 
 impl DataEnumExt for DataEnum {
     #[inline]
-    fn iter_variants(&self) -> Iter<Variant> {
+    fn iter_variants(&self) -> Iter<'_, Variant> {
         self.variants.iter()
     }
 
@@ -118,7 +118,7 @@ pub fn add_trait_bounds(mut generics: Generics, bound: TypeParamBound) -> Generi
 /// 1. For named fields: { ref a, ref b, ref c }
 /// 2. For unnamed fields: (ref field_0, ref field_1, ref field_2)
 pub fn get_variant_pattern_match_expr(
-    fields: Iter<Field>,
+    fields: Iter<'_, Field>,
     fields_type: FieldsType,
     add_ref: bool,
 ) -> TokenStream {

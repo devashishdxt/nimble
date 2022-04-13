@@ -42,7 +42,7 @@ fn named_struct_test() {
     struct NamedStruct {
         a: u8,
         b: u16,
-    };
+    }
 
     executor::block_on(async {
         let original = NamedStruct { a: 10, b: 20 };
