@@ -63,8 +63,6 @@
 //!   - **Disabled** by default.
 //! - `derive`: Enables derive macros for implementing `Encode` and `Decode` traits.
 //!   - **Disabled** by default.
-extern crate proc_macro;
-
 mod context;
 mod decode;
 mod encode;

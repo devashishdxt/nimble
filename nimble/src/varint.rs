@@ -1,5 +1,5 @@
 //! Utilities for encoding/decoding VarInt
-use core::{convert::TryFrom, fmt, mem::size_of};
+use core::{convert::TryFrom, fmt};
 
 use async_trait::async_trait;
 
@@ -187,7 +187,7 @@ macro_rules! impl_zigzag {
                 type Output = $output;
 
                 fn encode_zigzag(self) -> Self::Output {
-                    ((self << 1) ^ (self >> (size_of::<Self>() * 8 - 1))) as Self::Output
+                    ((self << 1) ^ (self >> (Self::BITS - 1))) as Self::Output
                 }
 
                 fn decode_zigzag(encoded: Self::Output) -> Self {

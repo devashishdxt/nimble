@@ -85,7 +85,7 @@ impl Decode for char {
         R: Read + Unpin + Send,
     {
         let code = <u32>::decode_from(config, reader).await?;
-        core::char::from_u32(code).ok_or_else(|| Error::InvalidChar(code))
+        core::char::from_u32(code).ok_or(Error::InvalidChar(code))
     }
 }
 

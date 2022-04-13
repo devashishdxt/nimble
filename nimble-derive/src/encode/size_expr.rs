@@ -21,7 +21,7 @@ impl<'a> SizeExpr for Context<'a> {
 
         match &self.expr_type {
             ExprType::Struct { ref fields, .. } => {
-                size_calculation_expr(fields.clone(), &field_prefix, None)
+                size_calculation_expr(fields.clone(), field_prefix, None)
             }
             ExprType::Enum { ref variants } => {
                 let match_exprs = variants
@@ -42,7 +42,7 @@ impl<'a> SizeExpr for Context<'a> {
 
                         let size_calculation = size_calculation_expr(
                             fields.iter_fields(),
-                            &field_prefix,
+                            field_prefix,
                             Some(base_size_expr),
                         );
 
@@ -88,7 +88,7 @@ impl<'a> SizeExpr for Context<'a> {
 ///
 /// assuming `field_prefix = &self.` and `base_size = None`.
 fn size_calculation_expr(
-    fields: Iter<Field>,
+    fields: Iter<'_, Field>,
     field_prefix: &TokenStream,
     base_size: Option<TokenStream>,
 ) -> TokenStream {
